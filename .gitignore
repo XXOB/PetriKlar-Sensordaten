@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+wasserwerte_csv/
+_site/
+
