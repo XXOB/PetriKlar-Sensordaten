@@ -17,7 +17,8 @@ import unicodedata
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 
 UA = "Mozilla/5.0 (PetriKlar Wasserwerte; kontakt via GitHub XXOB/Fishing)"
@@ -120,6 +121,12 @@ def _time_text(value):
     if value in (None, ""):
         return ""
     s = str(value).strip()
+    # Preserve the instant supplied by OGD/OGC feeds, not its bare UTC clock.
+    if re.search(r"(?:Z|[+-]\d{2}:?\d{2})$", s):
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Vienna")).strftime("%d.%m.%Y %H:%M")
+        except ValueError:
+            pass
     # ZRXP nutzt kompakte Zeitstempel. Diese vor den allgemeineren Formaten
     # behandeln, damit 12-stellige Werte nicht an der 14-stelligen Maske scheitern.
     for compact_fmt in ("%Y%m%d%H%M%S", "%Y%m%d%H%M"):
@@ -155,6 +162,18 @@ def _iso_time(value):
     if re.match(r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2})?", s):
         return s.replace(" ", "T", 1)
     return s
+
+
+def _zrxp_time(value, zone):
+    """ZRXP declares UTC+1 even in summer: this is a fixed offset, not CEST."""
+    raw = _iso_time(value)
+    match = re.fullmatch(r"UTC([+-])(\d{1,2})(?::(\d{2}))?", str(zone).strip(), re.I)
+    if match:
+        minutes = (int(match[2]) * 60 + int(match[3] or 0)) * (1 if match[1] == "+" else -1)
+        return datetime.fromisoformat(raw).replace(tzinfo=timezone(timedelta(minutes=minutes))).isoformat(timespec="minutes")
+    if str(zone).strip().upper() == "UTC":
+        return datetime.fromisoformat(raw).replace(tzinfo=timezone.utc).isoformat(timespec="minutes")
+    return raw
 
 
 def _coords_from_geometry(feature):
@@ -432,12 +451,13 @@ def process_ooe_live():
                 "Land Oberösterreich – data.gv.at",
             ))
             stamp, value = series["latest"]
+            stamp = _zrxp_time(stamp, h.get("TZ", ""))
             unit = h.get("CUNIT") or ("°C" if kind == "wt" else "cm")
             if kind == "wt":
                 st["items"].append(_item("Wassertemperatur", value, unit, stamp, 1))
                 st["params"]["wt"] = True
                 st["history"]["Wassertemperatur"] = [
-                    {"t": _iso_time(t), "v": v} for t, v in series["values"]
+                    {"t": _zrxp_time(t, h.get("TZ", "")), "v": v} for t, v in series["values"]
                 ]
             else:
                 st["items"].append(_item("Pegelstand", value, unit, stamp, 2))

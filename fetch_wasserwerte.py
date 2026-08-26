@@ -76,6 +76,7 @@ GKD_MAX_AGE_DAYS   = 4     # nur Stationen mit halbwegs aktuellem Wert
 BASE_DIR  = Path(__file__).resolve().parent
 JSON_FILE = BASE_DIR / "wasserwerte.json"
 TEMP_HISTORY_FILE = BASE_DIR / "wassertemperatur_verlauf.json"
+TEMP_SUPPLEMENT_FILE = BASE_DIR / "temperatur_zusatz.json"
 TEMP_ARCHIVE_DAYS = 366
 TEMP_ARCHIVE_HOURS = 4
 GKD_COORDS_FILE = BASE_DIR / "gkd_coords.json"   # Cache: Stations-ID -> lat/lon
@@ -1579,19 +1580,21 @@ def rolling_history_dt(value):
     dt=parse_dt(str(value or ""))
     if dt: return dt
     try:
-        return datetime.fromisoformat(str(value).replace("Z","+00:00")).replace(tzinfo=None)
+        parsed=datetime.fromisoformat(str(value).replace("Z","+00:00"))
+        return parsed.astimezone(ZoneInfo("Europe/Berlin")).replace(tzinfo=None) if parsed.tzinfo else parsed
     except (TypeError,ValueError):
         return None
 
 
-def merge_rolling_history(stations):
+def merge_rolling_history(stations, source_file=None):
     """Bestehende automatische Messwerte stündlich bis zu acht Tage fortschreiben."""
     try:
-        old_payload=json.loads(JSON_FILE.read_text(encoding="utf-8"))
+        old_payload=json.loads((source_file or JSON_FILE).read_text(encoding="utf-8"))
         old_by_id={str(s.get("id") or ""):s for s in old_payload.get("stations",[]) if s.get("id")}
     except Exception:
         old_by_id={}
-    cutoff=datetime.now()-timedelta(days=HIST_DAYS)
+    now=datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
+    cutoff=now-timedelta(days=HIST_DAYS)
 
     for station in stations:
         old=old_by_id.get(str(station.get("id") or ""),{})
@@ -1601,7 +1604,7 @@ def merge_rolling_history(stations):
             canonical=rolling_history_label(label)
             dt=rolling_history_dt(raw_time)
             val=to_number(str(raw_value))
-            if not canonical or not dt or val is None or dt<cutoff: return
+            if not canonical or not dt or val is None or dt<cutoff or dt>now+timedelta(minutes=15): return
             if canonical=="Wassertemperatur" and not (-2<=val<=40): return
             if canonical=="Sauerstoff" and not (0<=val<=30): return
             if canonical=="O₂-Sättigung" and not (0<=val<=250): return
@@ -1621,97 +1624,81 @@ def merge_rolling_history(stations):
 
         history={}
         for label,series in buckets.items():
-            history[label]=[{"t":dt.strftime("%Y-%m-%dT%H:%M"),"v":round(val,3)}
+            history[label]=[{"t":dt.replace(tzinfo=ZoneInfo("Europe/Berlin")).isoformat(timespec="minutes"),"v":round(val,3)}
                             for dt,val in (series[key] for key in sorted(series))]
         station["history"]=history
     return stations
 
 
 def temperature_archive_river(value):
-    low=normalized_header(value).strip()
-    if "rhein" in low or low=="rhine": return "Rhein"
-    if "donau" in low or low=="danube": return "Donau"
-    if "mosel" in low or low=="moselle": return "Mosel"
-    if "elbe" in low: return "Elbe"
-    if low=="main": return "Main"
-    if "oder" in low: return "Oder"
-    if "weser" in low: return "Weser"
-    return None
+    # Exact waterbody identity; never archive Altrhein or Werra as Rhine/Weser.
+    names={x.lower():x for x in ("Rhein","Donau","Mosel","Elbe","Main","Oder","Weser","Bodensee")}
+    names.update({"rhine":"Rhein","hochrhein":"Rhein","oberrhein":"Rhein","mittelrhein":"Rhein","niederrhein":"Rhein","danube":"Donau","moselle":"Mosel"})
+    return names.get(normalized_header(value).strip())
 
 
 def update_temperature_archive(stations):
-    """Temperaturen der Kartenflüsse ein Jahr lang in Vier-Stunden-Slots speichern."""
+    """One observation per 4h slot; keep its REAL time, provenance and timezone."""
     try:
         old_payload=json.loads(TEMP_HISTORY_FILE.read_text(encoding="utf-8"))
-        old_rows=old_payload.get("stations",[]) if isinstance(old_payload,dict) else []
     except Exception:
-        old_rows=[]
-
-    cutoff=datetime.now()-timedelta(days=TEMP_ARCHIVE_DAYS)
+        old_payload={}
+    now=datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
+    cutoff=now-timedelta(days=TEMP_ARCHIVE_DAYS)
     records={}
 
-    def ensure_record(row,river=None):
-        sid=str(row.get("id") or "")
-        if not sid: return None
-        rec=records.get(sid)
-        if rec is None:
-            rec={"id":sid,"name":row.get("name") or sid,"river":river or row.get("river") or "",
-                 "lat":row.get("lat"),"lon":row.get("lon"),"points":{}}
-            records[sid]=rec
-        else:
-            for key in ("name","lat","lon"):
-                if row.get(key) not in (None,""): rec[key]=row.get(key)
-            if river: rec["river"]=river
+    def ensure(row):
+        sid=str(row.get("id") or "");river=temperature_archive_river(row.get("river"))
+        if not sid or not river: return None
+        rec=records.setdefault(sid,{"id":sid,"points":{}})
+        for key in ("name","lat","lon","src","source_url","periodic"):
+            if row.get(key) not in (None,""): rec[key]=row[key]
+        rec["river"]=river
         return rec
 
-    def add_point(rec,raw_time,raw_value):
+    def add(rec,point,legacy=False):
         if rec is None: return
-        dt=rolling_history_dt(raw_time)
-        val=to_number(str(raw_value))
-        if not dt or val is None or dt<cutoff or not (-2<=val<=40): return
-        slot=dt.replace(hour=(dt.hour//TEMP_ARCHIVE_HOURS)*TEMP_ARCHIVE_HOURS,
-                        minute=0,second=0,microsecond=0)
+        dt=rolling_history_dt(point.get("t"));val=to_number(str(point.get("v")))
+        if not dt or val is None or dt<cutoff or dt>now+timedelta(minutes=15) or not (-2<=val<=40): return
+        legacy=legacy or point.get("time_quality")=="legacy_4h"
+        slot=dt.replace(hour=(dt.hour//TEMP_ARCHIVE_HOURS)*TEMP_ARCHIVE_HOURS,minute=0,second=0,microsecond=0)
         previous=rec["points"].get(slot)
-        if not previous or dt>=previous[0]: rec["points"][slot]=(dt,val)
+        # Original timestamps supersede legacy slot labels even when earlier.
+        if previous and ((legacy and not previous[2]) or (legacy==previous[2] and dt<previous[0])): return
+        rec["points"][slot]=(dt,val,legacy)
 
-    for row in old_rows:
-        river=temperature_archive_river(row.get("river"))
-        if not river: continue
-        rec=ensure_record(row,river)
-        for point in row.get("values",[]):
-            if isinstance(point,dict): add_point(rec,point.get("t"),point.get("v"))
-
+    for row in old_payload.get("stations",[]):
+        rec=ensure(row)
+        for point in row.get("values",[]): add(rec,point,old_payload.get("schema_version",1)<2)
     for station in stations:
-        river=temperature_archive_river(station.get("river"))
-        if not river: continue
-        rec=ensure_record(station,river)
+        rec=ensure(station)
         for label,points in station.get("history",{}).items():
-            if rolling_history_label(label)!="Wassertemperatur" or not isinstance(points,list): continue
-            for point in points:
-                if isinstance(point,dict): add_point(rec,point.get("t"),point.get("v"))
+            if rolling_history_label(label)=="Wassertemperatur" and isinstance(points,list):
+                for point in points: add(rec,point)
         for item in station.get("items",[]):
             if rolling_history_label(item.get("label"))=="Wassertemperatur":
-                add_point(rec,item.get("time") or station.get("updated"),item.get("value"))
-
-    archive_rows=[]
+                add(rec,{"t":item.get("time"),"v":item.get("value")})
+    rows=[]
     for rec in records.values():
-        if not rec["points"]: continue
-        archive_rows.append({"id":rec["id"],"name":rec["name"],"river":rec["river"],
-            "lat":rec["lat"],"lon":rec["lon"],
-            "values":[{"t":slot.strftime("%Y-%m-%dT%H:%M"),"v":round(rec["points"][slot][1],3)}
-                      for slot in sorted(rec["points"])]})
-    archive_rows.sort(key=lambda row:(row["river"],row["name"]))
-    payload={"updated":now_text(),"interval_hours":TEMP_ARCHIVE_HOURS,
-             "retention_days":TEMP_ARCHIVE_DAYS,"stations":archive_rows}
+        points=rec.pop("points");values=[]
+        for slot,(dt,val,legacy) in sorted(points.items()):
+            point={"t":dt.replace(tzinfo=ZoneInfo("Europe/Berlin")).isoformat(timespec="minutes"),"v":round(val,3),
+                   "slot":slot.replace(tzinfo=ZoneInfo("Europe/Berlin")).isoformat(timespec="minutes")}
+            if legacy: point["time_quality"]="legacy_4h"
+            values.append(point)
+        if values: rows.append({**rec,"values":values})
+    rows.sort(key=lambda row:(row["river"],row.get("name","")))
+    payload={"schema_version":2,"updated":datetime.now(timezone.utc).isoformat(timespec="minutes"),
+             "interval_hours":TEMP_ARCHIVE_HOURS,"retention_days":TEMP_ARCHIVE_DAYS,"stations":rows}
     temp_file=TEMP_HISTORY_FILE.with_suffix(".tmp")
     temp_file.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
     temp_file.replace(TEMP_HISTORY_FILE)
-    print(f"[Temperaturarchiv] {len(archive_rows)} Stationen, bis zu {TEMP_ARCHIVE_DAYS} Tage / {TEMP_ARCHIVE_HOURS} h")
+    print(f"[Temperaturarchiv] {len(rows)} Stationen / 4 h / originale Messzeiten")
 
 
-def write_json(stations):
+def write_json(stations, temperature_supplement=()):
     stations=merge_rolling_history(stations)
-    update_temperature_archive(stations)
+    update_temperature_archive([*stations,*temperature_supplement])
     payload = {
         "updated": datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M"),
         "stations": stations,
@@ -1834,7 +1821,13 @@ def main():
         sys.exit(2)
     results=retain_cached_neighbor_networks(results)
     print(f"Schreibe wasserwerte.json ({len(results)} Station(en)) ...")
-    write_json(results)
+    # Same supplemental temperature feeds as the app; separate public file.
+    from temperature_sources import collect
+    old_supplement=load_json_cache(TEMP_SUPPLEMENT_FILE).get("stations",[])
+    supplement=merge_rolling_history(collect(old_supplement),TEMP_SUPPLEMENT_FILE)
+    TEMP_SUPPLEMENT_FILE.write_text(json.dumps({"updated":datetime.now(timezone.utc).isoformat(timespec="minutes"),
+        "stations":supplement},ensure_ascii=False,indent=2),encoding="utf-8")
+    write_json(results,supplement)
     print("Fertig.")
 
 
