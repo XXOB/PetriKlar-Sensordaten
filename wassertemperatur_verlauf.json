@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated": "2026-08-26T07:41+00:00",
+  "updated": "2026-08-26T08:05+00:00",
   "interval_hours": 4,
   "retention_days": 366,
   "stations": [
@@ -64,7 +64,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 22.0,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -75,9 +75,9 @@
       "name": "Achleiten",
       "lat": 48.582691,
       "lon": 13.503335,
-      "river": "Donau",
       "src": "at-ooe",
       "source_url": "https://data.ooe.gv.at/files/hydro/HDOOE_Export_OG.zrxp",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-20T08:00+02:00",
@@ -325,9 +325,9 @@
       "name": "Bärndorf",
       "lat": 48.352238,
       "lon": 15.893177,
-      "river": "Donau",
       "src": "at-noe",
       "source_url": "https://www.noe.gv.at/wasserstand/",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -391,8 +391,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
-          "v": 20.8,
+          "t": "2026-08-26T09:45+02:00",
+          "v": 20.9,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -622,8 +622,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 20.9,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 21.1,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -633,9 +633,9 @@
       "name": "Deggendorf",
       "lat": 48.8258,
       "lon": 12.96065,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/deggendorf-10081004/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -710,9 +710,9 @@
       "name": "Donauwörth",
       "lat": 48.71406,
       "lon": 10.80334,
-      "river": "Donau",
       "src": "undine",
       "source_url": "https://undine.bafg.de/donau/guetemessstellen/donau_mst_donauwoerth.html",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -780,6 +780,11 @@
           "t": "2026-08-26T05:15+02:00",
           "v": 0.0,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:15+02:00",
+          "v": 0.0,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -788,9 +793,9 @@
       "name": "Donauwörth",
       "lat": 48.71072,
       "lon": 10.80149,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/donauwoerth-10039802/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -882,9 +887,9 @@
       "name": "Ingolstadt Luitpoldstr.",
       "lat": 48.75662,
       "lon": 11.42534,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/ingolstadt-luitpoldstr-10046105/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -943,7 +948,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 19.9,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -954,9 +959,9 @@
       "name": "Jochenstein",
       "lat": 48.52387,
       "lon": 13.70486,
-      "river": "Donau",
       "src": "undine",
       "source_url": "https://undine.bafg.de/donau/guetemessstellen/donau_mst_jochenstein.html",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1024,6 +1029,11 @@
           "t": "2026-08-26T05:15+02:00",
           "v": 18.8,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:15+02:00",
+          "v": 18.6,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -1032,9 +1042,9 @@
       "name": "Jochenstein Messstation",
       "lat": 48.52077,
       "lon": 13.70227,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/jochenstein-messstation-10097809/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1098,7 +1108,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 18.6,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -1109,9 +1119,9 @@
       "name": "Kelheim",
       "lat": 48.91659,
       "lon": 11.86433,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/kelheim-10053009/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1170,8 +1180,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
-          "v": 20.4,
+          "t": "2026-08-26T09:45+02:00",
+          "v": 20.5,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -1181,9 +1191,9 @@
       "name": "Kienstock",
       "lat": 48.382,
       "lon": 15.463,
-      "river": "Donau",
       "src": "at-noe",
       "source_url": "https://www.noe.gv.at/wasserstand/",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1247,8 +1257,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
-          "v": 20.4,
+          "t": "2026-08-26T09:45+02:00",
+          "v": 20.5,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -1258,9 +1268,9 @@
       "name": "Linz",
       "lat": 48.30692,
       "lon": 14.284912,
-      "river": "Donau",
       "src": "at-ooe",
       "source_url": "https://data.ooe.gv.at/files/hydro/HDOOE_Export_OG.zrxp",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-20T08:00+02:00",
@@ -1476,9 +1486,9 @@
       "name": "Mauthausen",
       "lat": 48.238945,
       "lon": 14.532836,
-      "river": "Donau",
       "src": "at-noe",
       "source_url": "https://www.noe.gv.at/wasserstand/",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1542,7 +1552,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 19.8,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -1553,9 +1563,9 @@
       "name": "Mauthausen",
       "lat": 48.239594,
       "lon": 14.521314,
-      "river": "Donau",
       "src": "at-ooe",
       "source_url": "https://data.ooe.gv.at/files/hydro/HDOOE_Export_OG.zrxp",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-20T08:00+02:00",
@@ -1771,9 +1781,9 @@
       "name": "Neu-Ulm",
       "lat": 48.38909,
       "lon": 9.98659,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/neu-ulm-10026293/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1832,8 +1842,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
-          "v": 18.4,
+          "t": "2026-08-26T09:45+02:00",
+          "v": 18.5,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -1843,9 +1853,9 @@
       "name": "Neustadt",
       "lat": 48.8184,
       "lon": 11.74568,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/neustadt-10051105/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -1904,7 +1914,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 20.8,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -2160,7 +2170,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 23.0,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -2171,9 +2181,9 @@
       "name": "Oberndorf",
       "lat": 48.94695,
       "lon": 12.01499,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/oberndorf-10056302/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -2493,8 +2503,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 22.6,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 22.5,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -2504,9 +2514,9 @@
       "name": "Passau-Donau",
       "lat": 48.57633,
       "lon": 13.45869,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/passau-donau-10091008/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -2581,9 +2591,9 @@
       "name": "Pfelling",
       "lat": 48.88301,
       "lon": 12.74966,
-      "river": "Donau",
       "src": "undine",
       "source_url": "https://undine.bafg.de/donau/guetemessstellen/donau_mst_pfelling.html",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-24T12:00+02:00",
@@ -2645,6 +2655,11 @@
           "t": "2026-08-26T05:15+02:00",
           "v": 21.7,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:15+02:00",
+          "v": 21.7,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -2653,9 +2668,9 @@
       "name": "Pfelling Messstation",
       "lat": 48.87991,
       "lon": 12.74735,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/pfelling-messstation-10077900/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-24T15:00+02:00",
@@ -2708,8 +2723,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
-          "v": 21.8,
+          "t": "2026-08-26T09:45+02:00",
+          "v": 21.9,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -2719,9 +2734,9 @@
       "name": "Regensburg",
       "lat": 49.03133,
       "lon": 12.07984,
-      "river": "Donau",
       "src": "undine",
       "source_url": "https://undine.bafg.de/donau/guetemessstellen/donau_mst_regensburg.html",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T04:00+02:00",
@@ -2768,6 +2783,11 @@
           "t": "2026-08-26T03:00+02:00",
           "v": 21.2,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T06:00+02:00",
+          "v": 20.8,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -2776,9 +2796,9 @@
       "name": "Regensburg Pfaffenstein",
       "lat": 49.02781,
       "lon": 12.07671,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/kelheim/regensburg-pfaffenstein-10060455/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -2837,7 +2857,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 20.7,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -3093,8 +3113,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 20.2,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 20.3,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -3104,9 +3124,9 @@
       "name": "Schwabelweis",
       "lat": 49.02357,
       "lon": 12.13874,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/schwabelweis-10062000/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3181,9 +3201,9 @@
       "name": "Straubing",
       "lat": 48.88557,
       "lon": 12.57373,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/straubing-10074009/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3242,7 +3262,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 22.0,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -3253,9 +3273,9 @@
       "name": "Thebnerstraßl",
       "lat": 48.166,
       "lon": 16.984,
-      "river": "Donau",
       "src": "at-noe",
       "source_url": "https://www.noe.gv.at/wasserstand/",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3319,8 +3339,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 21.5,
+          "t": "2026-08-26T09:30+02:00",
+          "v": 21.6,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -3591,7 +3611,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 22.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -3602,9 +3622,9 @@
       "name": "Vilshofen",
       "lat": 48.63521,
       "lon": 13.18659,
-      "river": "Donau",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/passau/vilshofen-10089006/messwerte",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3679,9 +3699,9 @@
       "name": "Wildungsmauer",
       "lat": 48.116066,
       "lon": 16.804488,
-      "river": "Donau",
       "src": "at-noe",
       "source_url": "https://www.noe.gv.at/wasserstand/",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3745,7 +3765,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 21.4,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -3756,9 +3776,9 @@
       "name": "Ybbs",
       "lat": 48.179451,
       "lon": 15.084252,
-      "river": "Donau",
       "src": "at-noe",
       "source_url": "https://www.noe.gv.at/wasserstand/",
+      "river": "Donau",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3822,7 +3842,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 20.6,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -3833,9 +3853,9 @@
       "name": "Cumlosen",
       "lat": 53.04598,
       "lon": 11.63867,
-      "river": "Elbe",
       "src": "undine",
       "source_url": "https://undine.bafg.de/elbe/guetemessstellen/elbe_mst_cumlosen.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -3902,6 +3922,11 @@
           "t": "2026-08-26T05:00+02:00",
           "v": 19.3,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:00+02:00",
+          "v": 19.0,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -4155,8 +4180,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:35+02:00",
-          "v": 20.1,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 20.2,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -4411,7 +4436,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 30.8,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -4667,8 +4692,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 19.9,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 20.0,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -4678,9 +4703,9 @@
       "name": "Grauerort",
       "lat": 53.68199,
       "lon": 9.49638,
-      "river": "Elbe",
       "src": "undine",
       "source_url": "https://undine.bafg.de/elbe/guetemessstellen/elbe_mst_grauerort.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -4734,8 +4759,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:30+02:00",
-          "v": 19.9,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 20.3,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -4745,9 +4770,9 @@
       "name": "Grauerort",
       "lat": 53.67764,
       "lon": 9.495,
-      "river": "Elbe",
       "src": "nlwkn",
       "source_url": "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/2013",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -4811,7 +4836,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
+          "t": "2026-08-26T09:30+02:00",
           "v": 20.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -5067,7 +5092,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 19.5,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -5323,8 +5348,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 19.5,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 19.7,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -5579,7 +5604,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 16.7,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -5835,7 +5860,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:37+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 19.7,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -6091,8 +6116,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 17.3,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 18.5,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -6102,9 +6127,9 @@
       "name": "Schmilka",
       "lat": 50.8949,
       "lon": 14.23307,
-      "river": "Elbe",
       "src": "undine",
       "source_url": "https://undine.bafg.de/elbe/guetemessstellen/elbe_mst_schmilka.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -6144,9 +6169,9 @@
       "name": "Schmilka",
       "lat": 50.8897,
       "lon": 14.2283,
-      "river": "Elbe",
       "src": "sachsen",
       "source_url": "https://www.wasser.sachsen.de/messstation-schmilka-elbe-rechts-fluss-km-726-alte-kilometrierung-4-18339.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-13T04:00+02:00",
@@ -6530,9 +6555,9 @@
       "name": "Schnackenburg",
       "lat": 53.03823,
       "lon": 11.56971,
-      "river": "Elbe",
       "src": "nlwkn",
       "source_url": "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/2014",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-25T15:30+02:00",
@@ -6560,8 +6585,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
-          "v": 19.3,
+          "t": "2026-08-26T09:45+02:00",
+          "v": 19.4,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -6571,9 +6596,9 @@
       "name": "Schnackenburg",
       "lat": 53.04216,
       "lon": 11.57159,
-      "river": "Elbe",
       "src": "undine",
       "source_url": "https://undine.bafg.de/elbe/guetemessstellen/elbe_mst_schnackenburg.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-25T03:00+02:00",
@@ -6596,8 +6621,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:30+02:00",
-          "v": 19.5,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 19.3,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -6852,8 +6877,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 16.8,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 16.9,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -6863,9 +6888,9 @@
       "name": "Wittenberg",
       "lat": 51.86127,
       "lon": 12.65368,
-      "river": "Elbe",
       "src": "undine",
       "source_url": "https://undine.bafg.de/elbe/guetemessstellen/elbe_mst_wittenberg.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-22T04:00+02:00",
@@ -6912,6 +6937,11 @@
           "t": "2026-08-26T03:00+02:00",
           "v": 20.2,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T06:00+02:00",
+          "v": 20.0,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -6920,9 +6950,9 @@
       "name": "Zehren",
       "lat": 51.21301,
       "lon": 13.40672,
-      "river": "Elbe",
       "src": "undine",
       "source_url": "https://undine.bafg.de/elbe/guetemessstellen/elbe_mst_zehren.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -6967,9 +6997,9 @@
       "name": "Zehren",
       "lat": 51.1989,
       "lon": 13.409,
-      "river": "Elbe",
       "src": "sachsen",
       "source_url": "https://www.wasser.sachsen.de/messstation-zehren-elbe-links-fluss-km-638-alte-kilometrierung-92-18337.html",
+      "river": "Elbe",
       "values": [
         {
           "t": "2026-08-13T04:00+02:00",
@@ -7614,7 +7644,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 20.9,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -7625,9 +7655,9 @@
       "name": "Astheim",
       "lat": 49.85839,
       "lon": 10.21769,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/astheim-24028000/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -7794,9 +7824,9 @@
       "name": "Erlabrunn Messstation",
       "lat": 49.85513,
       "lon": 9.85374,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/erlabrunn-messstation-24043800/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -7855,7 +7885,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 21.5,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -8111,8 +8141,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 21.4,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 21.5,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -8367,7 +8397,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 22.0,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -8669,7 +8699,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 21.2,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -8925,7 +8955,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 21.6,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -9181,8 +9211,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 21.5,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 21.6,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -9192,9 +9222,9 @@
       "name": "Kahl a. Main Messstation",
       "lat": 50.0639,
       "lon": 8.99033,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/kahl-a-main-messstation-24078008/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -9253,7 +9283,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 21.6,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -9264,9 +9294,9 @@
       "name": "Kahl am Main",
       "lat": 50.06741,
       "lon": 8.99163,
-      "river": "Main",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_kahl.html",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -9334,6 +9364,11 @@
           "t": "2026-08-26T05:15+02:00",
           "v": 21.7,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:15+02:00",
+          "v": 21.6,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -9342,9 +9377,9 @@
       "name": "Kemmern",
       "lat": 49.95096,
       "lon": 10.8741,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/elbe/kemmern-24010004/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -9403,7 +9438,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 18.4,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -9414,9 +9449,9 @@
       "name": "Kleinheubach",
       "lat": 49.7164,
       "lon": 9.22462,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/kleinheubach-24064003/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -9736,7 +9771,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 21.5,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -9747,9 +9782,9 @@
       "name": "Mainleus",
       "lat": 50.09943,
       "lon": 11.37274,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/elbe/mainleus-24003009/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -9808,7 +9843,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 16.7,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -10064,7 +10099,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 21.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -10320,8 +10355,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 21.2,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 21.3,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -10576,7 +10611,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 20.0,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -10832,7 +10867,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 21.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -10843,9 +10878,9 @@
       "name": "Schweinfurt",
       "lat": 50.03116,
       "lon": 10.22079,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/schweinfurt-24022003/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -10915,9 +10950,9 @@
       "name": "Schwürbitz",
       "lat": 50.16493,
       "lon": 11.15126,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/elbe/schwuerbitz-24006007/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -10962,9 +10997,9 @@
       "name": "Steinbach",
       "lat": 50.00994,
       "lon": 9.60376,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/steinbach-24050009/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -11284,7 +11319,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 19.0,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -11295,9 +11330,9 @@
       "name": "Trunstadt",
       "lat": 49.92952,
       "lon": 10.7551,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/elbe/trunstadt-24012203/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -11617,7 +11652,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 21.2,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -11873,7 +11908,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 20.7,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -11884,9 +11919,9 @@
       "name": "Würzburg",
       "lat": 49.79608,
       "lon": 9.92583,
-      "river": "Main",
       "src": "gkd",
       "source_url": "https://www.gkd.bayern.de/de/fluesse/wassertemperatur/main_unten/wuerzburg-24042000/messwerte",
+      "river": "Main",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -11961,9 +11996,9 @@
       "name": "Fankel",
       "lat": 50.12659,
       "lon": 7.22703,
-      "river": "Mosel",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_fankel.html",
+      "river": "Mosel",
       "values": [
         {
           "t": "2026-08-22T04:00+02:00",
@@ -12012,8 +12047,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:50+02:00",
-          "v": 21.5,
+          "t": "2026-08-26T07:50+02:00",
+          "v": 21.6,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -12421,14 +12456,19 @@
       "name": "Koblenz",
       "lat": 50.366,
       "lon": 7.58136,
-      "river": "Mosel",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_koblenz_mo.html",
+      "river": "Mosel",
       "values": [
         {
           "t": "2026-08-26T03:00+02:00",
           "v": 21.9,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T06:00+02:00",
+          "v": 21.9,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -12437,9 +12477,9 @@
       "name": "Palzem",
       "lat": 49.57072,
       "lon": 6.3663,
-      "river": "Mosel",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_palzem.html",
+      "river": "Mosel",
       "values": [
         {
           "t": "2026-08-22T04:00+02:00",
@@ -12488,8 +12528,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:50+02:00",
-          "v": 21.5,
+          "t": "2026-08-26T07:50+02:00",
+          "v": 21.4,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -13146,7 +13186,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 19.8,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -13402,8 +13442,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 18.5,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 18.6,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -13658,8 +13698,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 19.0,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 19.1,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -13914,7 +13954,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 18.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -13925,9 +13965,9 @@
       "name": "Hohenwutzen",
       "lat": 52.84016,
       "lon": 14.12577,
-      "river": "Oder",
       "src": "undine",
       "source_url": "https://undine.bafg.de/oder/guetemessstellen/oder_mst_hohenwutzen.html",
+      "river": "Oder",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -13990,6 +14030,11 @@
           "t": "2026-08-26T05:00+02:00",
           "v": 19.1,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:00+02:00",
+          "v": 19.0,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -14243,7 +14288,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 18.7,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -14499,8 +14544,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 18.5,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 18.6,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -14755,7 +14800,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 18.9,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -15011,8 +15056,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:00+02:00",
-          "v": 17.7,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 17.8,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -15022,9 +15067,9 @@
       "name": "Bad Honnef",
       "lat": 50.63369,
       "lon": 7.21626,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_bad_honnef.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-22T04:00+02:00",
@@ -15071,6 +15116,11 @@
           "t": "2026-08-26T03:00+02:00",
           "v": 21.2,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T05:00+02:00",
+          "v": 21.1,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -15219,14 +15269,19 @@
       "name": "Bimmen/Lobith",
       "lat": 51.86001,
       "lon": 6.06704,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_bimmen_lobith.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-26T02:00+02:00",
           "v": 20.6,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T04:00+02:00",
+          "v": 20.5,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -15235,14 +15290,19 @@
       "name": "Breisach",
       "lat": 48.08941,
       "lon": 7.57391,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_breisach.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-26T03:00+02:00",
           "v": 22.4,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T06:00+02:00",
+          "v": 22.2,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -15251,9 +15311,9 @@
       "name": "Iffezheim",
       "lat": 48.83484,
       "lon": 8.11237,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_iffezheim.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-22T04:00+02:00",
@@ -15302,7 +15362,7 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:00+02:00",
+          "t": "2026-08-26T07:00+02:00",
           "v": 21.9,
           "slot": "2026-08-26T04:00+02:00"
         }
@@ -15329,9 +15389,9 @@
       "name": "Karlsruhe",
       "lat": 49.01418,
       "lon": 8.29925,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_karlsruhe.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -15385,7 +15445,7 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:00+02:00",
+          "t": "2026-08-26T07:00+02:00",
           "v": 21.3,
           "slot": "2026-08-26T04:00+02:00"
         }
@@ -15412,14 +15472,19 @@
       "name": "Koblenz",
       "lat": 50.34959,
       "lon": 7.59984,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_koblenz_rh.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-26T03:00+02:00",
           "v": 21.3,
           "slot": "2026-08-26T00:00+02:00"
+        },
+        {
+          "t": "2026-08-26T06:00+02:00",
+          "v": 21.3,
+          "slot": "2026-08-26T04:00+02:00"
         }
       ]
     },
@@ -15826,9 +15891,9 @@
       "name": "Mainz-Wiesbaden",
       "lat": 50.01042,
       "lon": 8.27817,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_mainz_wiesbaden.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -15895,6 +15960,11 @@
           "t": "2026-08-26T05:50+02:00",
           "v": 21.4,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:50+02:00",
+          "v": 21.4,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -15919,14 +15989,19 @@
       "name": "Rekingen",
       "lat": 47.57038,
       "lon": 8.32963,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://www.hydrodaten.admin.ch/en/seen-und-fluesse/stations/2143",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-26T05:00+02:00",
           "v": 22.2,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:00+02:00",
+          "v": 22.3,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -15951,14 +16026,19 @@
       "name": "Weil am Rhein",
       "lat": 47.60137,
       "lon": 7.59474,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_weil.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-26T05:00+02:00",
           "v": 22.6,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:00+02:00",
+          "v": 22.6,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -15967,9 +16047,9 @@
       "name": "Worms",
       "lat": 49.63366,
       "lon": 8.3786,
-      "river": "Rhein",
       "src": "undine",
       "source_url": "https://undine.bafg.de/rhein/guetemessstellen/rhein_mst_worms.html",
+      "river": "Rhein",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -16036,6 +16116,11 @@
           "t": "2026-08-26T05:00+02:00",
           "v": 22.2,
           "slot": "2026-08-26T04:00+02:00"
+        },
+        {
+          "t": "2026-08-26T08:00+02:00",
+          "v": 22.2,
+          "slot": "2026-08-26T08:00+02:00"
         }
       ]
     },
@@ -16687,7 +16772,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 19.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -16943,7 +17028,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 19.6,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -17199,8 +17284,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 20.8,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 20.9,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -17210,9 +17295,9 @@
       "name": "Boffzen",
       "lat": 51.75726,
       "lon": 9.38724,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_boffzen.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -17266,8 +17351,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:30+02:00",
-          "v": 19.0,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 18.7,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -17277,9 +17362,9 @@
       "name": "Brake",
       "lat": 53.31965,
       "lon": 8.48745,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_brake.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -17333,8 +17418,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:30+02:00",
-          "v": 20.5,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 20.6,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -17344,9 +17429,9 @@
       "name": "Brake",
       "lat": 53.31519,
       "lon": 8.48609,
-      "river": "Weser",
       "src": "nlwkn",
       "source_url": "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/2023",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -17666,7 +17751,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 18.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -17677,9 +17762,9 @@
       "name": "Drakenburg",
       "lat": 52.6925,
       "lon": 9.21185,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_drakenburg.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -17733,8 +17818,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:30+02:00",
-          "v": 19.3,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 19.1,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -17744,9 +17829,9 @@
       "name": "Drakenburg",
       "lat": 52.68845,
       "lon": 9.21019,
-      "river": "Weser",
       "src": "nlwkn",
       "source_url": "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/2010",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -17810,7 +17895,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
+          "t": "2026-08-26T09:30+02:00",
           "v": 19.1,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -18066,8 +18151,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 20.6,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 20.8,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -18322,8 +18407,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
-          "v": 22.6,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 22.7,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -18333,9 +18418,9 @@
       "name": "Hemelingen",
       "lat": 53.05691,
       "lon": 8.87591,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_hemelingen.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-21T04:00+02:00",
@@ -18361,9 +18446,9 @@
       "name": "Hemeln",
       "lat": 51.50469,
       "lon": 9.61426,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_hemeln.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -18417,8 +18502,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:45+02:00",
-          "v": 18.6,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 18.3,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -18428,9 +18513,9 @@
       "name": "Hemeln",
       "lat": 51.50099,
       "lon": 9.60424,
-      "river": "Weser",
       "src": "nlwkn",
       "source_url": "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/2006",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -18494,7 +18579,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T09:45+02:00",
           "v": 18.3,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -18505,9 +18590,9 @@
       "name": "Hess. Oldendorf",
       "lat": 52.15799,
       "lon": 9.24871,
-      "river": "Weser",
       "src": "nlwkn",
       "source_url": "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/2018",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -18571,7 +18656,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:15+02:00",
+          "t": "2026-08-26T09:30+02:00",
           "v": 19.5,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -18582,9 +18667,9 @@
       "name": "Hessisch Oldendorf",
       "lat": 52.1619,
       "lon": 9.25018,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_hess_oldendorf.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -18638,8 +18723,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:30+02:00",
-          "v": 19.3,
+          "t": "2026-08-26T07:45+02:00",
+          "v": 19.5,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -18894,7 +18979,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 18.6,
           "slot": "2026-08-26T08:00+02:00"
         }
@@ -19150,8 +19235,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 19.9,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 19.8,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -19161,9 +19246,9 @@
       "name": "Porta",
       "lat": 52.24997,
       "lon": 8.92239,
-      "river": "Weser",
       "src": "undine",
       "source_url": "https://undine.bafg.de/weser/guetemessstellen/weser_mst_porta.html",
+      "river": "Weser",
       "values": [
         {
           "t": "2026-08-22T08:00+02:00",
@@ -19217,8 +19302,8 @@
           "slot": "2026-08-26T00:00+02:00"
         },
         {
-          "t": "2026-08-26T04:00+02:00",
-          "v": 18.9,
+          "t": "2026-08-26T06:00+02:00",
+          "v": 18.8,
           "slot": "2026-08-26T04:00+02:00"
         }
       ]
@@ -19548,8 +19633,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 20.5,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 20.4,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -19804,8 +19889,8 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:36+02:00",
-          "v": 18.5,
+          "t": "2026-08-26T10:00+02:00",
+          "v": 18.4,
           "slot": "2026-08-26T08:00+02:00"
         }
       ]
@@ -20060,7 +20145,7 @@
           "slot": "2026-08-26T04:00+02:00"
         },
         {
-          "t": "2026-08-26T09:30+02:00",
+          "t": "2026-08-26T10:00+02:00",
           "v": 14.4,
           "slot": "2026-08-26T08:00+02:00"
         }
