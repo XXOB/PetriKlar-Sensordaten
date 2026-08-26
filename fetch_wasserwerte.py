@@ -30,6 +30,7 @@ import urllib.request
 from urllib.parse import urljoin, quote
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 # Unterstuetzte Guetestationen (RLP-Portal, gleicher Download-Mechanismus).
 # Neue Station ergaenzen: "id" = Zahl aus der Portal-URL /gus/<id>/messwerte,
@@ -1216,6 +1217,33 @@ def process_nrw():
 UNDINE_REGIONS = ["rhein", "ems", "weser", "elbe", "oder", "donau"]
 UNDINE_COORDS_FILE = BASE_DIR / "undine_coords.json"
 UNDINE_MAX_AGE_H = 30
+UNDINE_STATION_ALIASES = {
+    ("rhein", "bimmen"): "bimmen_lobith",
+    ("rhein", "koblenz_mosel"): "koblenz_mo",
+    ("rhein", "koblenz_rhein"): "koblenz_rh",
+    ("rhein", "duesseldorf_flehe"): "ddorf_flehe",
+    ("rhein", "muelheim"): "muelheim_kahl",
+}
+
+def swiss_to_wgs84(easting, northing):
+    """LV03/LV95 -> WGS84; swisstopo's published approximate formula (metre scale).
+
+    https://www.swisstopo.admin.ch/dam/en/sd-web/KLRCX9XIdXDu/ch1903wgs84-EN.pdf
+    """
+    if easting > 2_000_000:
+        easting -= 2_000_000
+        northing -= 1_000_000
+    y=(easting-600_000)/1_000_000
+    x=(northing-200_000)/1_000_000
+    lon=2.6779094+4.728982*y+0.791484*y*x+0.1306*y*x*x-0.0436*y*y*y
+    lat=16.9023892+3.238272*x-0.270978*y*y-0.002528*x*x-0.0447*y*y*x-0.0140*x*x*x
+    return round(lat*100/36,5), round(lon*100/36,5)
+
+def undine_station_url(region, key):
+    if (region, key) == ("rhein", "rekingen"):
+        return "https://www.hydrodaten.admin.ch/en/seen-und-fluesse/stations/2143"
+    slug=UNDINE_STATION_ALIASES.get((region,key),key)
+    return f"https://undine.bafg.de/{region}/guetemessstellen/{region}_mst_{slug}.html"
 
 def gk_bessel_to_wgs84(R, H):
     """Gauß-Krüger (Bessel/Potsdam, Zone aus 1. Ziffer des Rechtswerts) -> WGS84 (lat, lon)."""
@@ -1232,10 +1260,15 @@ def gk_bessel_to_wgs84(R, H):
         +(61+90*T+298*C+45*T*T-252*ep2-3*C*C)*D**6/720)
     lon=lon0+(D-(1+2*T+C)*D**3/6+(5-2*C+28*T-3*C*C+8*ep2+24*T*T)*D**5/120)/math.cos(phi)
     lat=math.degrees(lat); lon=math.degrees(lon)
-    # Bessel/Potsdam -> WGS84 (3-Parameter-Helmert über ECEF, ~100 m genau)
-    dx=-598.1; dy=-73.7; dz=-418.2
+    # DHDN -> WGS84: EPSG:1777, 7-parameter position-vector Helmert.
+    # The old negative translations described the opposite datum direction.
+    # https://epsg.org/transformation_1777/DHDN-to-WGS-84-2.html
+    dx=598.1; dy=73.7; dz=418.2
     la=math.radians(lat); lo=math.radians(lon); Nn=a/math.sqrt(1-e2*math.sin(la)**2)
-    X=Nn*math.cos(la)*math.cos(lo)+dx; Y=Nn*math.cos(la)*math.sin(lo)+dy; Z=Nn*(1-e2)*math.sin(la)+dz
+    X=Nn*math.cos(la)*math.cos(lo); Y=Nn*math.cos(la)*math.sin(lo); Z=Nn*(1-e2)*math.sin(la)
+    rx,ry,rz=(math.radians(v/3600) for v in (0.202,0.045,-2.455))
+    scale=1+6.7e-6
+    X,Y,Z=dx+scale*(X-rz*Y+ry*Z),dy+scale*(rz*X+Y-rx*Z),dz+scale*(-ry*X+rx*Y+Z)
     aW=6378137.0; fW=1/298.257223563; e2W=fW*(2-fW); p=math.hypot(X,Y); l2=math.atan2(Z,p*(1-e2W))
     for _ in range(5):
         Nw=aW/math.sqrt(1-e2W*math.sin(l2)**2); l2=math.atan2(Z+e2W*Nw*math.sin(l2), p)
@@ -1266,12 +1299,30 @@ def undine_wt(region):
 
 def undine_station_coords(region, key, cache):
     ck=region+"/"+key
-    if ck in cache: return cache[ck]
+    url=undine_station_url(region,key)
+    # No UNDINE station page is linked for Rekingen. Coordinates are the official
+    # BAFU station 2143 LV95 pair, NOT estimated from the city or another sensor.
+    if (region,key)==("rhein","rekingen"):
+        lat,lon=swiss_to_wgs84(2_667_045,1_269_233)
+        cache[ck]={"lat":lat,"lon":lon,"name":"Rekingen","river":"Rhein","source_url":url}
+        return cache[ck]
+    cached=cache.get(ck)
+    if isinstance(cached,dict) and "lat" in cached:
+        cached.setdefault("source_url",url)
+        return cached
+    now=datetime.now(timezone.utc).timestamp()
+    if isinstance(cached,dict) and cached.get("retry_after",0)>now:
+        return None
+    # Old null entries must be retried; temporary failures are not permanent.
+    # Cache failures for a day to avoid wasting every hourly collector run.
+    def missing():
+        cache[ck]={"retry_after":now+86400}
+        return None
     try:
-        html=fetch_gkd_html(f"https://undine.bafg.de/{region}/guetemessstellen/{region}_mst_{key}.html")
+        html=fetch_gkd_html(url)
     except Exception:
-        cache[ck]=None; return None
-    txt=re.sub(r"<[^>]+>"," ",html).replace("&nbsp;"," ")
+        return missing()
+    txt=html_lib.unescape(re.sub(r"<[^>]+>"," ",html))
     mrh=re.search(r"Rechtswert\s*/\s*Hochwert:\s*(\d{6,7})\s*/\s*(\d{6,7})", txt)
     name=key; river=""
     mt=re.search(r"<title>([^<]+)</title>", html)
@@ -1280,25 +1331,33 @@ def undine_station_coords(region, key, cache):
         if "," in nm: river=nm.rsplit(",",1)[1].strip(); name=nm.rsplit(",",1)[0].strip()
         else: name=nm
     if not mrh:
-        cache[ck]=None; return None
-    lat,lon=gk_bessel_to_wgs84(float(mrh.group(1)), float(mrh.group(2)))
+        return missing()
+    R,H=float(mrh.group(1)),float(mrh.group(2))
+    if R<1_000_000 and H<1_000_000:
+        # Weil: the page labels LV03 as Rechtswert/Hochwert but prints N / E.
+        if R<400_000 and H>400_000: R,H=H,R
+        lat,lon=swiss_to_wgs84(R,H)
+    else:
+        # Breisach's page prints northing 5328912 before easting 3393839.
+        if 5_000_000<R<6_200_000 and 2_000_000<H<5_000_000: R,H=H,R
+        lat,lon=gk_bessel_to_wgs84(R,H)
     if not (47.0<=lat<=55.2 and 5.5<=lon<=15.6):
-        cache[ck]=None; return None
-    cache[ck]={"lat":lat, "lon":lon, "name":name, "river":river}
+        return missing()
+    cache[ck]={"lat":lat, "lon":lon, "name":html_lib.unescape(name), "river":html_lib.unescape(river), "source_url":url}
     return cache[ck]
 
 def process_undine():
     try: cache=json.loads(UNDINE_COORDS_FILE.read_text(encoding="utf-8"))
     except Exception: cache={}
-    now=datetime.now(); results=[]
+    now=datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None); results=[]
     for region in UNDINE_REGIONS:
         try: wt=undine_wt(region)
         except Exception as ex: print(f"      Undine {region}: {ex}"); continue
         for key,d in wt.items():
             dt=parse_dt(d.get("d","")) if d.get("d") else None
             dto=parse_dt(d.get("d_o2","")) if d.get("d_o2") else None
-            temp_ok=d.get("t") is not None and not (dt and (now-dt).total_seconds()>UNDINE_MAX_AGE_H*3600)
-            o2_ok=d.get("o2") is not None and not (dto and (now-dto).total_seconds()>UNDINE_MAX_AGE_H*3600)
+            temp_ok=d.get("t") is not None and dt is not None and -3600<=(now-dt).total_seconds()<=UNDINE_MAX_AGE_H*3600
+            o2_ok=d.get("o2") is not None and dto is not None and -3600<=(now-dto).total_seconds()<=UNDINE_MAX_AGE_H*3600
             if not temp_ok and not o2_ok: continue
             c=undine_station_coords(region, key, cache)
             if not c: continue
@@ -1309,6 +1368,8 @@ def process_undine():
                                     "icon":"", "time":dto.strftime("%d.%m.%Y %H:%M") if dto else d.get("d_o2","")})
             results.append({
                 "id":"undine-"+region+"-"+key, "name":c["name"], "lat":c["lat"], "lon":c["lon"], "river":c["river"], "src":"undine",
+                "source_url":c["source_url"],
+                "data_source_url":f"https://undine.bafg.de/bilder/undine/{region}/aktuell_wt_o2_{region}.js",
                 "updated": datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M"),
                 "items":items,
                 "history":{},
