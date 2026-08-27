@@ -140,12 +140,13 @@ def hlnug():
 
 
 def collect(previous=()):
+    from international_temperature_sources import collect as international
     results = {}
     # Keep original timestamps on cached rows: old values must not look fresh.
     for r in previous:
         if r.get("id"):
             results[r["id"]] = r
-    for name, adapter in (("PEGELONLINE", pegelonline), ("LUBW NIZ", niz), ("HLNUG", hlnug)):
+    for name, adapter in (("PEGELONLINE", pegelonline), ("LUBW NIZ", niz), ("HLNUG", hlnug), ("Nachbarländer", international)):
         try:
             rows = adapter()
             for r in rows:

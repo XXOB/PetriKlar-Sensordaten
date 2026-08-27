@@ -14,6 +14,7 @@ def module(name):
 c=module('fetch_wasserwerte')
 feeds=module('temperature_sources')
 at=module('austria_sources')
+import international_temperature_sources as international
 
 class ArchiveTests(unittest.TestCase):
     def setUp(self):
@@ -33,6 +34,13 @@ class ArchiveTests(unittest.TestCase):
         c.update_temperature_archive([self.station('07:45')]);p=self.read();point=p['stations'][0]['values'][0]
         self.assertEqual(p['schema_version'],2);self.assertIn('07:45',point['t']);self.assertIn('04:00',point['slot'])
         self.assertEqual(p['stations'][0]['src'],'pegelonline')
+    def test_foreign_source_country_and_attribution_survive_in_archive(self):
+        s=self.station('07:45')
+        s.update(country='CZ',attribution='Český hydrometeorologický ústav',license='CC BY 4.0',
+                 license_url='https://creativecommons.org/licenses/by/4.0/',data_note='Operative Messung')
+        c.update_temperature_archive([s]);saved=self.read()['stations'][0]
+        for key in ['country','attribution','license','license_url','data_note']:
+            self.assertEqual(saved[key],s[key])
     def test_legacy_time_is_marked_not_falsely_declared_exact(self):
         self.file.write_text(json.dumps({'stations':[{'id':'s','river':'Main','values':[{'t':f'{self.date}T04:00','v':24}]}]}))
         c.update_temperature_archive([]);self.assertEqual(self.read()['stations'][0]['values'][0]['time_quality'],'legacy_4h')
@@ -62,7 +70,7 @@ class ArchiveTests(unittest.TestCase):
         self.assertIsNone(feeds.temperature(''));self.assertIsNone(feeds.temperature(None));self.assertEqual(feeds.temperature('19,4'),19.4)
     def test_feed_failure_keeps_cached_original_dates(self):
         old=self.station('07:45')
-        with patch.object(feeds,'pegelonline',side_effect=OSError('test')),patch.object(feeds,'niz',return_value=[]),patch.object(feeds,'hlnug',return_value=[]):
+        with patch.object(feeds,'pegelonline',side_effect=OSError('test')),patch.object(feeds,'niz',return_value=[]),patch.object(feeds,'hlnug',return_value=[]),patch.object(international,'collect',return_value=[]):
             self.assertEqual(feeds.collect([old]),[old])
     def test_one_missing_po_coordinate_does_not_drop_the_other_stations(self):
         timestamp=datetime.now(ZoneInfo('Europe/Berlin')).isoformat()

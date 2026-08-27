@@ -1651,7 +1651,7 @@ def update_temperature_archive(stations):
         sid=str(row.get("id") or "");river=temperature_archive_river(row.get("river"))
         if not sid or not river: return None
         rec=records.setdefault(sid,{"id":sid,"points":{}})
-        for key in ("name","lat","lon","src","source_url","periodic"):
+        for key in ("name","lat","lon","src","source_url","periodic","country","attribution","license","license_url","data_note"):
             if row.get(key) not in (None,""): rec[key]=row[key]
         rec["river"]=river
         return rec
