@@ -18,7 +18,7 @@ jobs:
   update:
     name: Amtliche Messwerte abrufen
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
@@ -39,11 +39,19 @@ jobs:
         timeout-minutes: 25
         run: python fetch_wasserwerte.py
 
+      - name: Pegelkarte mit amtlichen Kennwerten aktualisieren
+        timeout-minutes: 6
+        run: |
+          python fetch_water_levels.py --output pegelkarte.json --austria wasserwerte.json || {
+            echo "::warning::Pegelabruf fehlgeschlagen; letzter datierter Stand bleibt erhalten."
+            test -s pegelkarte.json
+          }
+
       - name: Daten und Stationscaches speichern
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add wasserwerte.json wassertemperatur_verlauf.json
+          git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json
           [ -f temperatur_zusatz.json ] && git add temperatur_zusatz.json || true
           [ -f gkd_coords.json ] && git add gkd_coords.json || true
           [ -f nlwkn_coords.json ] && git add nlwkn_coords.json || true
@@ -61,6 +69,7 @@ jobs:
         run: |
           mkdir -p _site
           cp wasserwerte.json _site/
+          cp pegelkarte.json _site/
           cp wassertemperatur_verlauf.json _site/
           [ ! -f temperatur_zusatz.json ] || cp temperatur_zusatz.json _site/
           touch _site/.nojekyll
