@@ -1,4 +1,4 @@
-"""Official Donau gauge supplements. Never substitute warning thresholds for MHW."""
+"""Official regional gauge supplements. Never substitute warning thresholds for MHW."""
 import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -79,15 +79,15 @@ def parse_measurements(html):
 def bayern_inventory(html):
     result = []
     for row in rows(html):
-        if len(row) < 4 or text(row[1]) != 'Donau':
+        if len(row) < 4 or text(row[1]) not in ('Donau', 'Main'):
             continue
         link = re.search(r'href="(https://www\.hnd\.bayern\.de/pegel/[^\"]+)"', row[0])
         if link and not link[1].endswith('/abfluss'):
-            result.append((text(row[0]), link[1]))
+            result.append((text(row[0]), link[1], text(row[1])))
     return result
 
 
-def bayern_station(name, url, old, now, hourly, validate):
+def bayern_station(name, url, river, old, now, hourly, validate):
     slug = url.rstrip('/').split('/')[-1]
     number = slug.rsplit('-', 1)[-1]
     gkd = GKD + slug
@@ -107,7 +107,7 @@ def bayern_station(name, url, old, now, hourly, validate):
     if not series:
         raise ValueError('No recent measured water levels')
     _, issue = validate({'unit': 'cm', 'characteristicValues': [dict(v, shortname=k) for k, v in refs.items()]})
-    return {'id': 'hnd-' + number, 'official_number': number, 'name': name, 'river': 'Donau',
+    return {'id': 'hnd-' + number, 'official_number': number, 'name': name, 'river': river,
             'lat': float(point['lat']), 'lon': float(point['lon']), 'source': 'LfU Bayern / HND',
             'source_url': url, 'reference_source': 'LfU Bayern / GKD', 'reference_source_url': gkd + '/statistik',
             'unit': 'cm', 'references': refs, 'reference_issue': issue,
@@ -148,11 +148,11 @@ def supplement(stations, previous, now, hourly, validate):
         inventory = bayern_inventory(fetch_text(HND + 'tabellen'))
         with ThreadPoolExecutor(max_workers=4) as pool:
             tasks = {}
-            for name, url in inventory:
+            for name, url, river in inventory:
                 number = url.rstrip('/').rsplit('-', 1)[-1]
                 if number in existing and existing[number]['reference_issue'] is None:
                     continue
-                tasks[pool.submit(bayern_station, name, url, old.get('hnd-' + number, {}), now, hourly, validate)] = number
+                tasks[pool.submit(bayern_station, name, url, river, old.get('hnd-' + number, {}), now, hourly, validate)] = number
             for future in as_completed(tasks):
                 number = tasks[future]
                 try:
@@ -179,5 +179,22 @@ def supplement(stations, previous, now, hourly, validate):
     # HVZ also mirrors Neu-Ulm: keep the HND series when present.
     if any(s['id'] == 'hnd-10026293' for s in additions):
         additions = [s for s in additions if s['id'] != 'hvz-09047']
-    stations.extend(additions)
+    # State and federal gauge numbers differ at some shared measuring sites.
+    # Match name, river and nearby coordinates; retain one complete source series.
+    for candidate in additions:
+        duplicate = next((s for s in stations if same_site(s, candidate)), None)
+        if duplicate:
+            if duplicate['reference_issue'] is None or candidate['reference_issue'] is not None:
+                continue
+            stations.remove(duplicate)
+        stations.append(candidate)
     return errors
+
+
+def same_site(a, b):
+    if a['river'] != b['river'] or a['name'].casefold() != b['name'].casefold():
+        return False
+    try:
+        return abs(float(a['lat']) - float(b['lat'])) < 0.01 and abs(float(a['lon']) - float(b['lon'])) < 0.01
+    except (TypeError, ValueError, KeyError):
+        return False
