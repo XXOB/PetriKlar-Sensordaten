@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 from urllib.request import Request, urlopen
+from regional_water_levels import supplement
 
 API = 'https://www.pegelonline.wsv.de/webservices/rest-api/v2/'
 INVENTORY_URL = API + 'stations.json?includeTimeseries=true&includeCharacteristicValues=true&includeCurrentMeasurement=true'
@@ -150,8 +151,18 @@ def main():
                                  'source': s.get('src'), 'source_url': s.get('source_url', ''), 'unit': item.get('unit'),
                                  'current': {'v': number(item.get('value')), 't': item.get('time')},
                                  'references': {}, 'reference_issue': 'missing-references', 'history': []})
+    coverage_report = report(stations)
+    regional_errors = supplement(stations, previous, now.timestamp(), hourly, references)
+    regional = [s for s in stations if s['id'].startswith(('hnd-', 'hvz-'))]
+    coverage_report['regional'] = {
+        'total': len(regional),
+        'usable_references': sum(s['reference_issue'] is None for s in regional),
+        'sources': dict(Counter(s['source'] for s in regional)),
+    }
+    print('Regional:', len([s for s in stations if s['id'].startswith(('hnd-', 'hvz-'))]), 'stations;', len(regional_errors), 'errors')
     data = {'schema': 1, 'fetched_at': now.isoformat(), 'source_url': INVENTORY_URL,
-            'report': report(stations), 'history_errors': failures, 'stations': stations}
+            'regional_errors': regional_errors,
+            'report': coverage_report, 'history_errors': failures, 'stations': stations}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temp = args.output.with_suffix('.tmp')
     temp.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf8')
