@@ -6,7 +6,9 @@ Native water-level datum is preserved; missing normal levels are never invented.
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
+import csv
 from datetime import datetime, timezone, timedelta
+import gzip
 import hashlib
 import json
 import math
@@ -19,6 +21,21 @@ CH_GRAPH = 'https://lindas.admin.ch/foen/hydro'
 CH_QUERY = 'https://lindas.admin.ch/query?query=' + quote(
     'SELECT ?s ?p ?o WHERE { GRAPH <' + CH_GRAPH + '> { ?s ?p ?o } }')
 NL_BASE = 'https://ddapi20-waterwebservices.rijkswaterstaat.nl/'
+NL_HISTORY_TARGETS = {
+    'amerongen.beneden','amerongen.boven','arnhem.nederrijn','belfeld.boven','culemborg','dalem',
+    'desteeg','deventer','doesburg.ijssel','driel.beneden','driel.boven','eijsden.grens',
+    'eisdenmazenhove.maas','eisdenmazenhove.maesbempdergreend','elsloo.maas','gennep',
+    'grave.beneden','grave.boven','hagestein.beneden','hagestein.boven','kampen.ijssel',
+    'kampen.keteldiep','krimpenaandelek.lek','lanaken','linne.stuw.beneden','lith.beneden',
+    'lith.boven','lith.sluis','lixhebiefaval','lobith.bovenrijn.haven',
+    'lobith.bovenrijn.tolkamer','maaseik','maastricht.borgharen.maas.beneden',
+    'maastricht.sintpieter','maastricht.sintpieter.zuid','meeswijk','megen.maas',
+    'millingenaanderijn.pannerdensekop','moerdijk','mook','neer','negenoord.oost','negenoord.west',
+    'olst','rhenen.grebbeberg','roermond.boven','rotem','sambeek.beneden','sambeek.boven',
+    'schoonhoven','smeermaas.zuidwillemsvaart','spaanjerd','stevensweert','steyl','uikhoven',
+    'veessen','venlo','well','westervoort.hondsbroekschepleij.ijssel','westervoort.ijsselkop',
+    'wijhe','zaltbommel','zutphen.ijssel'
+}
 LICENSES = {
     'bafu': {'country': 'CH', 'license': 'Open-Use',
              'license_url': 'https://ld.admin.ch/vocabulary/TermsOfUse/Open-Use',
@@ -121,6 +138,124 @@ def ch_history(rows, now):
         return list(pool.map(load,rows))
 
 
+def ch_daily_level_history(rows, now):
+    """Backfill official daily means from BAFU's prepared monthly Open Data files."""
+    targets = {s['id']:s for s in rows if s.get('src') == 'bafu'
+               and any(i.get('label') == 'Pegelstand' for i in s.get('items',[]))}
+    if not targets:
+        return {'requested_windows':0,'points':0}
+    cursor = (now-timedelta(days=366)).date().replace(day=1)
+    added = 0
+    windows = 0
+    errors = []
+    current_month=now.date().replace(day=1)
+    while cursor <= current_month:
+        name=f'water_observations_{cursor.year}_data_1day_mean_{cursor.year}{cursor.month:02d}.csv.gz'
+        url=f'https://data.bafu.admin.ch/download/water/observations/live/data/{cursor.year}/{name}'
+        try:
+            request=Request(url,headers={'User-Agent':'PetriKlar/1.0 (+https://www.petriklar.com)'})
+            with urlopen(request,timeout=40) as response:raw=response.read(8_000_001)
+            if len(raw)>8_000_000:raise ValueError('BAFU daily file exceeds size limit')
+            for point in csv.DictReader(gzip.decompress(raw).decode('utf8').splitlines()):
+                station=targets.get('bafu-'+point.get('station_no',''))
+                value=number(point.get('value'))
+                if station is None or point.get('parameter_name')!='W' or value is None \
+                        or point.get('unit_symbol') not in ('m ü.M.','m ü. M.','m'):
+                    continue
+                stamp=datetime.fromisoformat(point['timestamp']).replace(tzinfo=timezone.utc)
+                if not 0 <= (now-stamp).total_seconds()/86400 <= 366:continue
+                station.setdefault('history',{}).setdefault('Pegelstand',[]).append(
+                    {'t':stamp.isoformat(),'v':value})
+                added += 1
+        except Exception as error:
+            errors.append({'file':name,'error':str(error)})
+        windows += 1
+        cursor=(cursor.replace(day=28)+timedelta(days=4)).replace(day=1)
+    if not errors:
+        checked = now.isoformat()
+        for station in targets.values():
+            station['history_checked_at'] = checked
+            station['history_source'] = 'BAFU Open Data platform, official daily means'
+    return {'requested_months':windows,'points':added,'errors':errors}
+
+
+def nl_identity(loc, meta, flags):
+    return (loc['Code'], meta.get('Grootheid',{}).get('Code'), flags.get('Bemonsteringshoogte'),
+            flags.get('Referentievlak'), meta.get('Hoedanigheid',{}).get('Code'))
+
+
+def nl_daily_level_history(payload, now):
+    """Reduce RWS ten-minute measurements locally to one median per UTC day and series."""
+    from statistics import median
+    days = defaultdict(lambda:defaultdict(list))
+    metadata = {}
+    if payload.get('Succesvol') is not True:
+        raise ValueError('RWS historical observations unsuccessful')
+    for series in payload.get('WaarnemingenLijst',[]):
+        meta,loc=series.get('AquoMetadata',{}),series.get('Locatie',{})
+        if meta.get('Grootheid',{}).get('Code') != 'WATHTE' or meta.get('ProcesType') != 'meting':
+            continue
+        for point in series.get('MetingenLijst',[]):
+            flags=point.get('WaarnemingMetadata',{})
+            value=number(point.get('Meetwaarde',{}).get('Waarde_Numeriek'))
+            try:stamp=datetime.fromisoformat(point['Tijdstip'])
+            except (ValueError,KeyError):continue
+            if value is None or stamp.tzinfo is None or str(flags.get('Kwaliteitswaardecode')) not in ('00','10','20','30','40'):
+                continue
+            # Instrument or series identifiers may change. Water levels remain comparable
+            # only when location, native unit and official datum are identical.
+            key=(loc['Code'],meta.get('Eenheid',{}).get('Code'),meta.get('Hoedanigheid',{}).get('Code'))
+            days[key][stamp.astimezone(timezone.utc).date()].append(value)
+            metadata[key]={'unit':key[1],'datum':key[2],'source_station':key[0]}
+    return {key:{'points':[{'t':datetime.combine(day,datetime.min.time(),timezone.utc).isoformat(),'v':median(values)}
+                           for day,values in sorted(group.items())],**metadata[key]}
+            for key,group in days.items()}
+
+
+def nl_backfill_locations(rows, now, budget=2):
+    """Backfill a small number per run to respect RWS fair-use; all map targets finish in ~32 runs."""
+    by_location=defaultdict(list)
+    for row in rows:
+        if row.get('src')=='rijkswaterstaat' and row.get('source_station') in NL_HISTORY_TARGETS \
+                and any(i.get('label')=='Pegelstand' for i in row.get('items',[])):
+            by_location[row['source_station']].append(row)
+    stale=[]
+    for location,group in by_location.items():
+        if any(history_baseline(s.get('history',{}).get('Pegelstand',[]),
+                                next(i['unit'] for i in s['items'] if i['label']=='Pegelstand'),now) for s in group):
+            continue
+        checked=max((s.get('history_checked_at','') for s in group
+                     if s.get('history_source')=='Rijkswaterstaat WaterWebservices v2, same location/unit/NAP'),default='')
+        try:is_recent=now-datetime.fromisoformat(checked)<timedelta(days=30)
+        except ValueError:is_recent=False
+        if not is_recent:stale.append(location)
+    completed=[]
+    for location in sorted(stale)[:budget]:
+        parsed={}
+        cursor=now-timedelta(days=730)
+        while cursor<now:
+            end=min(cursor+timedelta(days=365),now)
+            body={'Locatie':{'Code':location},'AquoPlusWaarnemingMetadata':{
+                'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':'WATHTE'},'ProcesType':'meting'}},
+                'Periode':{'Begindatumtijd':cursor.strftime('%Y-%m-%dT%H:%M:%S+00:00'),
+                           'Einddatumtijd':end.strftime('%Y-%m-%dT%H:%M:%S+00:00')}}
+            part=nl_daily_level_history(read_json(
+                NL_BASE+'ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen',body),now)
+            for key,series in part.items():
+                parsed.setdefault(key,{**series,'points':[]})['points'].extend(series['points'])
+            cursor=end
+        checked=now.isoformat()
+        for row in by_location[location]:
+            unit=next(i['unit'] for i in row['items'] if i['label']=='Pegelstand')
+            key=(location,unit,row.get('level_datum'))
+            if key in parsed:
+                row.setdefault('history',{}).setdefault('Pegelstand',[]).extend(parsed[key]['points'])
+            row['history_checked_at']=checked
+            row['history_source']='Rijkswaterstaat WaterWebservices v2, same location/unit/NAP'
+        completed.append(location)
+    return {'eligible_locations':len(by_location),'backfilled_locations':completed,'remaining':max(0,len(stale)-len(completed))}
+
+
 def nl_locations(catalog):
     if catalog.get('Succesvol') is not True:
         raise ValueError('RWS catalogue unsuccessful')
@@ -157,8 +292,7 @@ def parse_nl(payload, now):
             if not recent_time(stamp, now) or (kind == 'T' and not -2 <= value <= 40):
                 continue
             # Preserve separate measurement horizons and water-level datums.
-            identity = (loc['Code'], kind, flags.get('Bemonsteringshoogte'),
-                        flags.get('Referentievlak'), meta.get('Hoedanigheid', {}).get('Code'))
+            identity = nl_identity(loc, meta, flags)
             code = hashlib.sha256(json.dumps(identity).encode()).hexdigest()[:12]
             label = 'Wassertemperatur' if kind == 'T' else 'Pegelstand'
             row = rows.setdefault(identity, dict(id='rws-'+loc['Code']+'-'+code,
@@ -261,30 +395,36 @@ def main():
     parser.add_argument('--nl-catalog', type=Path)
     parser.add_argument('--only', choices=['CH','NL','AT'])
     parser.add_argument('--no-history', action='store_true')
+    parser.add_argument('--history-only', action='store_true', help='Use the archive without refreshing live feeds')
+    parser.add_argument('--history-budget', type=int, default=2, help='Maximum RWS locations backfilled per run')
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
-    rows, report = [], {}
-    if args.only in (None,'CH'):
+    archive_path=args.output.with_name('europe-history.json')
+    previous_path=archive_path if archive_path.exists() else args.output
+    previous=json.loads(previous_path.read_text(encoding='utf8')) if previous_path.exists() else {}
+    rows, report = ([{**s,'history':dict(s.get('history',{}))} for s in previous.get('stations',[])],
+                    dict(previous.get('source_report',{}))) if args.history_only else ([], {})
+    if not args.history_only and args.only in (None,'CH'):
         payload = json.loads(args.ch_fixture.read_text()) if args.ch_fixture else read_json(CH_QUERY)
         ch = parse_ch(payload,now)
         if not args.no_history:ch=ch_history(ch,now)
         rows.extend(ch); report['CH']={'stations':len(ch),'history_failures':sum(bool(s.get('history_errors')) for s in ch)}
-    if args.only in (None,'NL'):
+    if not args.history_only and args.only in (None,'NL'):
         catalog = json.loads(args.nl_catalog.read_text()) if args.nl_catalog else None
         nl, report['NL'] = collect_nl(now,catalog); rows.extend(nl)
-    if args.only in (None,'AT'):
+    if not args.history_only and args.only in (None,'AT'):
         at,report['AT']=collect_at();rows.extend(at)
     # Retain real historical measurements using the same one-month/one-year policy.
     from build_sensor_packets import retain
-    archive_path=args.output.with_name('europe-history.json')
-    previous_path=archive_path if archive_path.exists() else args.output
-    previous=json.loads(previous_path.read_text(encoding='utf8')) if previous_path.exists() else {}
     old={s['id']:s for s in previous.get('stations',[])}
     # Temporary source outages must not erase the accumulated annual archive.
     received={s['id'] for s in rows}
     rows.extend({**s,'history':dict(s.get('history',{})),'not_received_this_run':True}
                 for key,s in old.items() if key not in received)
     for row in rows:
+        prior=old.get(row['id'],{})
+        for key in ('history_checked_at','history_source'):
+            if prior.get(key) and not row.get(key):row[key]=prior[key]
         for label in old.get(row['id'],{}).get('history',{}):
             row.setdefault('history',{}).setdefault(label,[])
         for item in row.get('items',[]):
@@ -292,6 +432,20 @@ def main():
                 row.setdefault('history',{}).setdefault(item['label'],[]).append({'t':item['time'],'v':number(item['value'])})
         for label,points in row.get('history',{}).items():
             row['history'][label]=retain(old.get(row['id'],{}).get('history',{}).get(label,[])+points,now.timestamp())
+    if not args.no_history and args.only in (None,'CH'):
+        def needs_ch_history(row):
+            if row.get('src')!='bafu':return False
+            level=next((i for i in row.get('items',[]) if i['label']=='Pegelstand'),None)
+            if not level or history_baseline(row.get('history',{}).get('Pegelstand',[]),level['unit'],now):return False
+            try:return now-datetime.fromisoformat(row.get('history_checked_at',''))>=timedelta(days=30)
+            except ValueError:return True
+        if any(needs_ch_history(row) for row in rows):
+            report.setdefault('CH',{})['daily_level_history']=ch_daily_level_history(rows,now)
+    if not args.no_history and args.only in (None,'NL'):
+        report.setdefault('NL',{})['daily_level_history']=nl_backfill_locations(rows,now,max(0,args.history_budget))
+    for row in rows:
+        for label,points in row.get('history',{}).items():
+            row['history'][label]=retain(points,now.timestamp())
         level = next((i for i in row.get('items',[]) if i['label']=='Pegelstand'), None)
         if level:
             row.pop('history_baseline',None)

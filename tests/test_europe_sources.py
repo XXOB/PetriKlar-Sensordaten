@@ -1,4 +1,5 @@
 import unittest
+import gzip
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 import europe_sources as E
@@ -14,6 +15,29 @@ class EuropeanSources(unittest.TestCase):
         self.assertIsNone(E.history_baseline(points[:90],'m',now))
         self.assertIsNone(E.history_baseline([p for i,p in enumerate(points) if not 140<i<185],'m',now))
         self.assertIsNone(E.history_baseline([{**p,'v':1} for p in points],'m',now))
+
+    def test_bafu_daily_history_is_attached_by_station_number(self):
+        row={'id':'bafu-2009','src':'bafu','items':[{'label':'Pegelstand','unit':'m'}],'history':{}}
+        header='station_name,station_latitude,station_longitude,parameter_name,ts_name,unit_name,unit_symbol,station_no,station_id,timestamp,value,release_state\n'
+        line='Bern,46,7,W,x,metre,m ü.M.,2009,1,2026-09-01 00:00:00,501.2,2\n'
+        class Response:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def read(self,*args):return gzip.compress((header+line).encode())
+        with patch.object(E,'urlopen',return_value=Response()):report=E.ch_daily_level_history([row],self.now)
+        self.assertEqual(report['requested_months'],13)
+        self.assertEqual(len(row['history']['Pegelstand']),13)
+        self.assertIn('history_checked_at',row)
+
+    def test_rws_history_is_reduced_to_daily_medians_without_interpolated_values(self):
+        series=self.series(10,kind='WATHTE',stamp='2026-09-01T00:00:00+00:00')
+        series['MetingenLijst']=[
+            {'Meetwaarde':{'Waarde_Numeriek':10},'Tijdstip':'2026-09-01T00:00:00+00:00','WaarnemingMetadata':{'Kwaliteitswaardecode':'00','Bemonsteringshoogte':'-200','Referentievlak':'WATSGL'}},
+            {'Meetwaarde':{'Waarde_Numeriek':20},'Tijdstip':'2026-09-01T12:00:00+00:00','WaarnemingMetadata':{'Kwaliteitswaardecode':'00','Bemonsteringshoogte':'-200','Referentievlak':'WATSGL'}},
+            {'Meetwaarde':{'Waarde_Numeriek':999},'Tijdstip':'2026-09-01T13:00:00+00:00','WaarnemingMetadata':{'Kwaliteitswaardecode':'25','Bemonsteringshoogte':'-200','Referentievlak':'WATSGL'}}]
+        parsed=E.nl_daily_level_history({'Succesvol':True,'WaarnemingenLijst':[series]},self.now)
+        self.assertEqual(len(parsed),1)
+        self.assertEqual(next(iter(parsed.values()))['points'][0]['v'],15)
 
     def setUp(self):
         self.now=datetime(2026,9,11,12,tzinfo=timezone.utc)

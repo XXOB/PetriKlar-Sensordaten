@@ -47,10 +47,18 @@ jobs:
             test -s pegelkarte.json
           }
 
+      - name: Niederländische Pegelhistorie schrittweise ergänzen
+        timeout-minutes: 6
+        run: |
+          if [ -s europe-history.json ]; then
+            python europe_sources.py --output europe-water.json --history-only --only NL --history-budget 2 || \
+              echo "::warning::Historienlauf fehlgeschlagen; nächster Stundenlauf versucht es erneut."
+          fi
+
       - name: Frei lizenzierte Messnetze CH AT NL aktualisieren
         timeout-minutes: 10
         run: |
-          python europe_sources.py --output europe-water.json || {
+          python europe_sources.py --output europe-water.json --history-budget 0 || {
             echo "::warning::Europa-Abruf fehlgeschlagen; letzter datierter Stand bleibt erhalten."
             test -s europe-water.json
           }
