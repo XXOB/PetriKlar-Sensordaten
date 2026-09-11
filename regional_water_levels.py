@@ -79,7 +79,7 @@ def parse_measurements(html):
 def bayern_inventory(html):
     result = []
     for row in rows(html):
-        if len(row) < 4 or text(row[1]) not in ('Donau', 'Main'):
+        if len(row) < 4 or text(row[1]) not in ('Donau', 'Main', 'Inn', 'Lech'):
             continue
         link = re.search(r'href="(https://www\.hnd\.bayern\.de/pegel/[^\"]+)"', row[0])
         if link and not link[1].endswith('/abfluss'):
