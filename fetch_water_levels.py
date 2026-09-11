@@ -53,12 +53,14 @@ def references(series):
         if key not in ('MNW', 'MW', 'MHW'):
             continue
         refs[key] = {k: row[k] for k in ('value', 'unit', 'timespanStart', 'timespanEnd', 'validFrom') if k in row}
-    if len(refs) != 3:
+    if 'MHW' in refs and number(refs['MHW'].get('value')) is None:
+        del refs['MHW']
+    if not all(k in refs for k in ('MNW', 'MW')):
         return refs, 'missing-references'
     if series.get('unit') != 'cm' or any(x.get('unit') != 'cm' for x in refs.values()):
         return refs, 'reference-unit'
-    values = [number(refs[k].get('value')) for k in ('MNW', 'MW', 'MHW')]
-    if any(v is None for v in values) or not values[0] < values[1] < values[2]:
+    values = [number(refs[k].get('value')) for k in ('MNW', 'MW', 'MHW') if k in refs]
+    if any(v is None for v in values) or not all(a < b for a, b in zip(values, values[1:])):
         return refs, 'reference-order'
     periods = {(v.get('timespanStart'), v.get('timespanEnd'), v.get('validFrom')) for v in refs.values()}
     if len(periods) != 1:

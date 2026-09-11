@@ -357,6 +357,8 @@ def _xlsx_rows(raw):
 
 def _ooe_station_meta():
     """HZB-/Namensindex aus der offiziellen OÖ-Messstellenübersicht."""
+    from pyproj import Transformer
+    transformer = Transformer.from_crs('EPSG:31258', 'EPSG:4326', always_xy=True)
     by_id, by_name = {}, {}
     for rows in _xlsx_rows(_fetch_bytes(OOE_STATIONS_URL)):
         header_i = next((i for i, row in enumerate(rows[:30])
@@ -380,11 +382,22 @@ def _ooe_station_meta():
                         if k in ("lon", "lng", "long", "longitude", "langengrad")
                         or "geogrlange" in k), "")
             coords = _normalize_coords(lon, lat)
+            if not coords:
+                east = _number(row.get('bmnrm31'))
+                north = _number(row.get('bmnhm31'))
+                if east is not None and north is not None:
+                    lon, lat = transformer.transform(east, north)
+                    coords = _normalize_coords(lon, lat)
+            if '/' in name and not river:
+                name, river = [part.strip() for part in name.split('/', 1)]
             meta = {"name": name, "river": river}
             if coords:
                 meta.update({"lat": coords[0], "lon": coords[1]})
             if sid:
                 by_id[re.sub(r"\.0$", "", sid)] = meta
+            hd = row.get('hdnr', '').lstrip('0')
+            if hd:
+                by_id[hd] = meta
             if name:
                 by_name[_norm(name)] = meta
     return by_id, by_name

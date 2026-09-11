@@ -131,11 +131,15 @@ def hvz_stations(html, old, now, hourly):
         except ValueError:
             current = {'t': None, 'v': None}
         series = hourly(old.get(key, {}).get('history', []) + [current], now)
-        # HVZ publishes MW/MNW derived via WQ curves, but no compatible MHW.
-        # Keep these gauges gray rather than mix statistical definitions.
+        # Official WQ-derived water levels in cm; zero is a missing-value sentinel.
+        refs = {k: {'value': float(row[i]), 'unit': 'cm', 'method': 'WQ-derived'}
+                for k, i in [('MW', 40), ('MNW', 43)]
+                if isinstance(row[i], (int, float)) and row[i] > 0}
+        issue = None if len(refs) == 2 and refs['MNW']['value'] < refs['MW']['value'] else 'missing-references'
         result.append({'id': key, 'name': row[1], 'river': 'Donau', 'lat': row[21], 'lon': row[20],
                        'source': 'LUBW / HVZ', 'source_url': HVZ + 'pegel.html?id=' + row[0],
-                       'unit': 'cm', 'references': {}, 'reference_issue': 'missing-references',
+                       'unit': 'cm', 'references': refs, 'reference_issue': issue,
+                       'reference_source': 'LUBW / HVZ (WQ)', 'reference_source_url': HVZ + 'pegel.html?id=' + row[0],
                        'current': series[-1] if series else current, 'history': series, 'mapped_river': True})
     return result
 
