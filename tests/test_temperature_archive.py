@@ -61,6 +61,8 @@ class ArchiveTests(unittest.TestCase):
     def test_aliases_exclude_wrong_rivers_and_include_lake_proxy(self):
         self.assertEqual(c.temperature_archive_river('Bodensee'),'Bodensee')
         self.assertEqual(c.temperature_archive_river('RHEIN'),'Rhein')
+        self.assertEqual(c.temperature_archive_river('Inn'),'Inn')
+        self.assertEqual(c.temperature_archive_river('LECH'),'Lech')
         for name in ['Altrhein','Werra','Main-Donau-Kanal','Neue Donau']:
             self.assertIsNone(c.temperature_archive_river(name))
     def test_future_and_invalid_values_are_not_saved(self):

@@ -1632,7 +1632,7 @@ def merge_rolling_history(stations, source_file=None):
 
 def temperature_archive_river(value):
     # Exact waterbody identity; never archive Altrhein or Werra as Rhine/Weser.
-    names={x.lower():x for x in ("Rhein","Donau","Mosel","Elbe","Main","Oder","Weser","Bodensee")}
+    names={x.lower():x for x in ("Rhein","Donau","Mosel","Elbe","Main","Oder","Weser","Inn","Lech","Bodensee")}
     names.update({"rhine":"Rhein","hochrhein":"Rhein","oberrhein":"Rhein","mittelrhein":"Rhein","niederrhein":"Rhein","danube":"Donau","moselle":"Mosel"})
     return names.get(normalized_header(value).strip())
 
