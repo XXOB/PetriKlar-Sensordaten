@@ -1803,19 +1803,20 @@ def main():
         results.extend(process_marnet_metadata())
     except Exception as e:
         print(f"      FEHLER BSH/MARNET: {e}")
-    try:                                   # Schweiz: offizielle offene BAFU-GraphQL-API
-        results.extend(process_switzerland_bafu())
-    except Exception as e:
-        print(f"      FEHLER Schweiz/BAFU: {e}")
-    try:                                   # Niederlande inkl. Küste: offizielle RWS-DDAPI20/WFS
-        results.extend(process_netherlands_rws())
-    except Exception as e:
-        print(f"      FEHLER Niederlande/RWS: {e}")
-    try:                                   # Österreich: OGD/OGC/Landesfeeds; kein eHYD-Scraping
-        from austria_sources import process_austria_sources
-        results.extend(process_austria_sources())
-    except Exception as e:
-        print(f"      FEHLER Österreich gesamt: {e}")
+    if __import__('os').environ.get('PETRIKLAR_COUNTRY') != 'DE':
+        try:                                   # Schweiz: offizielle offene BAFU-GraphQL-API
+            results.extend(process_switzerland_bafu())
+        except Exception as e:
+            print(f"      FEHLER Schweiz/BAFU: {e}")
+        try:                                   # Niederlande inkl. Küste: offizielle RWS-DDAPI20/WFS
+            results.extend(process_netherlands_rws())
+        except Exception as e:
+            print(f"      FEHLER Niederlande/RWS: {e}")
+        try:                                   # Österreich: OGD/OGC/Landesfeeds; kein eHYD-Scraping
+            from austria_sources import process_austria_sources
+            results.extend(process_austria_sources())
+        except Exception as e:
+            print(f"      FEHLER Österreich gesamt: {e}")
     if not results:
         print("Keine Station erfolgreich abgerufen.")
         sys.exit(2)
