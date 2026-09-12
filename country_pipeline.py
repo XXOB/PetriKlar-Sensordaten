@@ -96,6 +96,7 @@ def publish():
     for row in merged['stations']:
         row['history'] = {label: recent(points, now) for label, points in row.get('history', {}).items()}
     write(ROOT / 'europe-water.json', merged)
+    write(ROOT / 'europe-directory.json', {'fetched_at':merged.get('fetched_at'), 'stations':[{'id':s['id'],'items':s.get('items',[])} for s in merged['stations'] if s.get('country') in ('AT','CH')]})
     for kind, label in [('level', 'Pegelstand'), ('temperature', 'Wassertemperatur')]:
         selected = [{**s, 'items': [i for i in s.get('items', []) if i['label'] == label], 'history': {label: s.get('history', {}).get(label, [])}} for s in merged['stations'] if any(i['label'] == label for i in s.get('items', [])) or s.get('history', {}).get(label)]
         write(ROOT / ('europe-' + kind + '.json'), {**merged, 'stations': selected})

@@ -31,7 +31,7 @@ jobs:
           cp wasserwerte.json _site/
           cp pegelkarte.json _site/
           cp europe-water.json _site/
-          cp europe-temperature.json europe-level.json _site/
+          cp europe-temperature.json europe-level.json europe-directory.json _site/
           cp -r packets _site/
           cp wassertemperatur_verlauf.json _site/
           [ ! -f temperatur_zusatz.json ] || cp temperatur_zusatz.json _site/
