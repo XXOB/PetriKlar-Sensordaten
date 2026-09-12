@@ -475,6 +475,9 @@ def process_ooe_live():
             else:
                 st["items"].append(_item("Pegelstand", value, unit, stamp, 2))
                 st["params"]["pegel"] = True
+                st["history"]["Pegelstand"] = [
+                    {"t": _zrxp_time(t, h.get("TZ", "")), "v": v} for t, v in series["values"]
+                ]
             st["updated"] = _time_text(stamp)
     out = list(grouped.values())
     print(f"[Österreich/Oberösterreich] {len(out)} Pegel-/Temperaturstationen")
@@ -500,6 +503,15 @@ def process_kaernten_live():
                 "at-ktn-" + sid, name, coords[0], coords[1], river, "at-ktn", url,
                 "CC BY 4.0", "Land Kärnten – data.gv.at",
             ))
+            # Preserve published observations; never substitute discharge for level.
+            values = p.get("werte") or {}
+            for key, label in (("wasserstand", "Pegelstand"), ("abfluss", "Durchfluss"),
+                               ("wassertemperatur", "Wassertemperatur")):
+                points = values.get(key, [])
+                if isinstance(points, list):
+                    st["history"][label] = [{"t": point["date"], "v": _number(point.get("value"))}
+                        for point in points if isinstance(point, dict) and point.get("date")
+                        and _number(point.get("value")) is not None]
             definitions = (
                 ("pegel", "Pegelstand", ("letzter_wert_w", "wert_w"),
                  ("letzter_wert_w_date", "wert_w_date"), "cm", 2),
