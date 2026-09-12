@@ -71,7 +71,7 @@ def build(root, output):
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
     short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}
-    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech'}
+    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns','mur','drau','traun'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
         return river in rivers or 'bodensee' in river

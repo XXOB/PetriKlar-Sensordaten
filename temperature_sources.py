@@ -11,7 +11,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-RIVERS = {x.casefold(): x for x in ("Rhein", "Main", "Mosel", "Donau", "Weser", "Elbe", "Oder", "Inn", "Lech", "Bodensee")}
+RIVERS = {x.casefold(): x for x in ("Rhein", "Main", "Mosel", "Donau", "Weser", "Elbe", "Oder", "Inn", "Lech", "Salzach", "Enns", "Mur", "Drau", "Traun", "Bodensee")}
 PO = "https://www.pegelonline.wsv.de/webservices/rest-api/v2/"
 NIZ = "https://inovum-services.de/gmb/md/v1/gewaesser;1.0.0?page%5Blimit%5D=1000"
 HLNUG = "https://app.hlnug.de/json/wasser/"
