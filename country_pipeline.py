@@ -34,6 +34,7 @@ def combine(payloads):
                 if str(item.get('time') or '') >= str(prior.get('time') or ''):
                     items[item['label']] = item
             row['items'] = list(items.values())
+            row['params'] = {**row.get('params', {}), 'pegel': 'Pegelstand' in items or 'Durchfluss' in items, 'wt': 'Wassertemperatur' in items}
             labels = set(old.get('history', {})) | set(incoming.get('history', {}))
             row['history'] = {label: retain(old.get('history', {}).get(label, []) + incoming.get('history', {}).get(label, []), now.timestamp()) for label in labels}
             level = items.get('Pegelstand')
@@ -57,6 +58,12 @@ def run_country(code, historical=False):
     sources += [read(ROOT / 'countries' / code / kind / 'europe-history.json') for kind in ('current', 'history')]
     seed = combine(sources)
     seed['stations'] = [s for s in seed['stations'] if country(s) == code]
+    if code == 'AT' and historical:
+        from steiermark_sources import collect as collect_stmk
+        rows, report = collect_stmk(annual=True, budget=3, previous=seed['stations'])
+        result = combine([seed, {'stations': rows, 'source_report': {'AT_STMK': report}}])
+        write(folder / 'europe-history.json', result)
+        return
     write(folder / 'europe-history.json', seed)
     command = [sys.executable, str(ROOT / 'europe_sources.py'), '--only', code, '--output', str(folder / 'europe-water.json')]
     command += ['--history-only', '--history-budget', '2'] if historical else ['--no-history']

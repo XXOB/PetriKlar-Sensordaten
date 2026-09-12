@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        country: [CH, NL]
+        country: [CH, NL, AT]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install pyproj
+      - run: python -m pip install pyproj beautifulsoup4
       - run: python country_pipeline.py ${{ matrix.country }} --history
       - run: |
           git add countries/${{ matrix.country }}/history

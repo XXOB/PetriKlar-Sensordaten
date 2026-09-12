@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install pyproj
+      - run: python -m pip install pyproj beautifulsoup4
       - name: Aktuelle Messwerte ohne historische Downloads
         run: python country_pipeline.py AT
       - name: Land speichern

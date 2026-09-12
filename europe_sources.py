@@ -411,6 +411,27 @@ def collect_at():
                 item['time']=datetime.strptime(item['time'],'%d.%m.%Y %H:%M').replace(tzinfo=ZoneInfo('Europe/Vienna')).isoformat()
             except (ValueError,KeyError):
                 item['time']=None
+    from vorarlberg_sources import collect as collect_vbg
+    try:
+        vbg_rows, vbg_errors = collect_vbg()
+        rows.extend(vbg_rows)
+        errors.extend(vbg_errors)
+    except Exception as error:
+        errors.append({'source':'Vorarlberg','error':str(error)})
+    from austria_ogd_csv import collect as collect_ogd
+    try:
+        ogd_rows, ogd_errors = collect_ogd()
+        rows.extend(ogd_rows)
+        errors.extend(ogd_errors)
+    except Exception as error:
+        errors.append({'source':'Tirol/Salzburg OGD','error':str(error)})
+    from steiermark_sources import collect as collect_stmk
+    try:
+        stmk_rows, stmk_report = collect_stmk()
+        rows.extend(stmk_rows)
+        errors.extend(stmk_report['errors'])
+    except Exception as error:
+        errors.append({'source':'Steiermark','error':str(error)})
     return rows,{'stations':len(rows),'errors':errors,'unverified_sources_excluded':['Niederösterreich-Kartenfeed','Salzburg-Stationsfeed']}
 
 
