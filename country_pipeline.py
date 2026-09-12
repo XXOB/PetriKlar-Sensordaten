@@ -22,6 +22,7 @@ def combine(payloads):
     from europe_sources import history_baseline
     now = datetime.now(timezone.utc)
     rows = {}
+    archive_references = read(ROOT / 'austria-level-references.json').get('references', {})
     report = {}
     for payload in payloads:
         report.update(payload.get('source_report', {}))
@@ -43,6 +44,10 @@ def combine(payloads):
                 baseline = history_baseline(row['history'].get('Pegelstand', []), level.get('unit'), now)
                 if baseline:
                     row['history_baseline'] = baseline
+            archived = archive_references.get(row['id'])
+            datum_matches = not (archived and row.get('level_datum_m') is not None and archived.get('datum_m') is not None and abs(row['level_datum_m']-archived['datum_m']) > .02)
+            if level and not row.get('history_baseline') and archived and archived.get('unit') == level.get('unit') and datum_matches:
+                row['history_baseline'] = archived
             rows[row['id']] = row
     return {'updated': now.isoformat(), 'stations': list(rows.values()), 'source_report': report}
 

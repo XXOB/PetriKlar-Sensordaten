@@ -504,6 +504,7 @@ def process_kaernten_live():
                 "CC BY 4.0", "Land Kärnten – data.gv.at",
             ))
             # Preserve published observations; never substitute discharge for level.
+            st['level_datum_m'] = _number(p.get('pnp'))
             values = p.get("werte") or {}
             for key, label in (("wasserstand", "Pegelstand"), ("abfluss", "Durchfluss"),
                                ("wassertemperatur", "Wassertemperatur")):
