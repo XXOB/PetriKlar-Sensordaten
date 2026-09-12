@@ -1,0 +1,30 @@
+name: Pegelhistorie ergänzen
+on:
+  schedule:
+    - cron: "37 */4 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pegelhistorie
+  cancel-in-progress: false
+jobs:
+  history:
+    strategy:
+      fail-fast: false
+      matrix:
+        country: [CH, NL]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pyproj
+      - run: python country_pipeline.py ${{ matrix.country }} --history
+      - run: |
+          git add countries/${{ matrix.country }}/history
+          bash commit_sensor_data.sh

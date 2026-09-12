@@ -1,4 +1,4 @@
-name: PetriKlar-Sensordaten aktualisieren
+name: Messwerte DE
 
 on:
   schedule:
@@ -11,8 +11,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: petriklar-sensordaten
-  cancel-in-progress: true
+  group: messwerte-DE
+  cancel-in-progress: false
 
 jobs:
   update:
@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Python einrichten
         uses: actions/setup-python@v5
@@ -37,6 +39,8 @@ jobs:
 
       - name: Wasserwerte abrufen
         timeout-minutes: 25
+        env:
+          PETRIKLAR_COUNTRY: DE
         run: python fetch_wasserwerte.py
 
       - name: Pegelkarte mit amtlichen Kennwerten aktualisieren
@@ -47,77 +51,10 @@ jobs:
             test -s pegelkarte.json
           }
 
-      - name: Niederländische Pegelhistorie schrittweise ergänzen
-        timeout-minutes: 6
+      - name: Daten speichern
         run: |
-          if [ -s europe-history.json ]; then
-            timeout 240s python europe_sources.py --output europe-water.json --history-only --only NL --history-budget 2 || \
-              echo "::warning::Historienlauf fehlgeschlagen; nächster Stundenlauf versucht es erneut."
-          fi
-
-      - name: Frei lizenzierte Messnetze CH AT NL aktualisieren
-        timeout-minutes: 10
-        run: |
-          timeout 480s python europe_sources.py --output europe-water.json --history-budget 0 || {
-            echo "::warning::Europa-Abruf fehlgeschlagen; letzter datierter Stand bleibt erhalten."
-            test -s europe-water.json
-          }
-
-      - name: Kleine Kartenpakete und Jahresarchive aktualisieren
-        run: python build_sensor_packets.py --root . --output packets
-
-      - name: Daten und Stationscaches speichern
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json europe-water.json europe-history.json europe-temperature.json europe-level.json
-          git add packets
-          [ -f temperatur_zusatz.json ] && git add temperatur_zusatz.json || true
-          [ -f gkd_coords.json ] && git add gkd_coords.json || true
-          [ -f nlwkn_coords.json ] && git add nlwkn_coords.json || true
-          [ -f undine_coords.json ] && git add undine_coords.json || true
-          [ -f berlin_coords.json ] && git add berlin_coords.json || true
-          if ! git diff --cached --quiet; then
-            git commit -m "Messwerte aktualisiert ($(date -u +'%Y-%m-%d %H:%MZ'))"
-            git pull --rebase origin main
-            git push
-          else
-            echo "Keine Änderungen an den Messwerten."
-          fi
-
-      - name: Öffentlichen Datenordner erzeugen
-        run: |
-          mkdir -p _site
-          cp wasserwerte.json _site/
-          cp pegelkarte.json _site/
-          cp europe-water.json _site/
-          cp europe-temperature.json europe-level.json _site/
-          cp -r packets _site/
-          cp wassertemperatur_verlauf.json _site/
-          [ ! -f temperatur_zusatz.json ] || cp temperatur_zusatz.json _site/
-          touch _site/.nojekyll
-          cat > _site/index.html <<'EOF'
-          <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PetriKlar Sensordaten</title><body><h1>PetriKlar Sensordaten</h1><p>Öffentliche, automatisiert konsolidierte Messdaten.</p><ul><li><a href="wasserwerte.json">Aktuelle Wasserwerte</a></li><li><a href="wassertemperatur_verlauf.json">Temperaturverlauf</a></li></ul></body></html>
-          EOF
-
-      - name: GitHub Pages konfigurieren
-        uses: actions/configure-pages@v5
-
-      - name: Daten als Pages-Artefakt packen
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-  deploy:
-    name: Datendateien veröffentlichen
-    needs: update
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Auf GitHub Pages veröffentlichen
-        id: deployment
-        uses: actions/deploy-pages@v4
-
+          git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json
+          for file in temperatur_zusatz.json gkd_coords.json nlwkn_coords.json undine_coords.json berlin_coords.json; do
+            [ ! -f "$file" ] || git add "$file"
+          done
+          bash commit_sensor_data.sh

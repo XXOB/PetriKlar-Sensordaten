@@ -1,0 +1,28 @@
+name: Messwerte AT
+on:
+  schedule:
+    - cron: "12 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: messwerte-AT
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pyproj
+      - name: Aktuelle Messwerte ohne historische Downloads
+        run: python country_pipeline.py AT
+      - name: Land speichern
+        run: |
+          git add countries/AT/current
+          bash commit_sensor_data.sh

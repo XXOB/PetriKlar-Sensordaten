@@ -1,0 +1,63 @@
+name: Sensordaten veröffentlichen
+on:
+  workflow_run:
+    workflows: [Messwerte DE, Messwerte AT, Messwerte CH, Messwerte NL, Pegelhistorie ergänzen]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: sensor-pages-publish
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python country_pipeline.py publish
+      - run: python build_sensor_packets.py --root . --output packets
+      - name: Öffentlichen Datenordner erzeugen
+        run: |
+          mkdir -p _site
+          cp wasserwerte.json _site/
+          cp pegelkarte.json _site/
+          cp europe-water.json _site/
+          cp europe-temperature.json europe-level.json _site/
+          cp -r packets _site/
+          cp wassertemperatur_verlauf.json _site/
+          [ ! -f temperatur_zusatz.json ] || cp temperatur_zusatz.json _site/
+          touch _site/.nojekyll
+          cat > _site/index.html <<'EOF'
+          <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PetriKlar Sensordaten</title><body><h1>PetriKlar Sensordaten</h1><p>Öffentliche, automatisiert konsolidierte Messdaten.</p><ul><li><a href="wasserwerte.json">Aktuelle Wasserwerte</a></li><li><a href="wassertemperatur_verlauf.json">Temperaturverlauf</a></li></ul></body></html>
+          EOF
+
+      - name: GitHub Pages konfigurieren
+        uses: actions/configure-pages@v5
+
+      - name: Daten als Pages-Artefakt packen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Datendateien veröffentlichen
+    needs: update
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Auf GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
+

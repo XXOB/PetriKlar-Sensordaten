@@ -147,6 +147,9 @@ def collect(previous=()):
         if r.get("id"):
             results[r["id"]] = r
     for name, adapter in (("PEGELONLINE", pegelonline), ("LUBW NIZ", niz), ("HLNUG", hlnug), ("Nachbarländer", international)):
+        if name == 'Nachbarländer' and __import__('os').environ.get('PETRIKLAR_COUNTRY') == 'DE':
+            from international_temperature_sources import chmi
+            adapter = chmi
         try:
             rows = adapter()
             for r in rows:
