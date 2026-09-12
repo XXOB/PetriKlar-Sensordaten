@@ -432,7 +432,10 @@ def collect_at():
         errors.extend(stmk_report['errors'])
     except Exception as error:
         errors.append({'source':'Steiermark','error':str(error)})
-    return rows,{'stations':len(rows),'errors':errors,'unverified_sources_excluded':['Niederösterreich-Kartenfeed','Salzburg-Stationsfeed']}
+    from austria_public_tables import supplement
+    rows, table_errors = supplement(rows, read_json)
+    errors.extend(table_errors)
+    return rows,{'stations':len(rows),'errors':errors,'unverified_sources_excluded':['Niederösterreich-Kartenfeed']}
 
 
 def history_baseline(points, unit, now):

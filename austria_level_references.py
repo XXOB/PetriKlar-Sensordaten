@@ -85,5 +85,10 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--stations',required=True);parser.add_argument('--network',required=True)
     args=parser.parse_args()
     out=collect(json.loads(Path(args.stations).read_text(encoding='utf-8'))['stations'],json.loads(Path(args.network).read_text(encoding='utf-8')))
-    (ROOT/'austria-level-references.json').write_text(json.dumps(out,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
+    target=ROOT/'austria-level-references.json'
+    previous=json.loads(target.read_text(encoding='utf8')) if target.exists() else {}
+    refs={**previous.get('references',{}),**out['references']}
+    for error in out['errors']:refs.pop(error['id'],None)
+    out['references']=refs
+    target.write_text(json.dumps(out,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
     print('References',len(out['references']),'unavailable',len(out['errors']))
