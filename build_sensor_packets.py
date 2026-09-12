@@ -45,11 +45,23 @@ def build(root, output):
     extra=read(root/'temperatur_zusatz.json')
     archive=read(root/'wassertemperatur_verlauf.json')
     levels=read(root/'pegelkarte.json') or read(root/'assets/data/water-levels.json')
-    cutoff=(datetime.now(timezone.utc)-timedelta(days=9)).isoformat()[:10]
+    now=datetime.now(timezone.utc).timestamp()
     def recent(points):
-        # ISO dates, including source-local timestamps: retain a full extra day.
-        selected=[p for p in points if str(p.get('t',''))[:10]>=cutoff]
-        return selected or points[-1:]
+        # Last real observation in each UTC four-hour bucket; never average
+        # or relabel readings. Keep an extra day for the seven-day viewport.
+        buckets={}
+        for p in points:
+            try:
+                dt=datetime.fromisoformat(str(p['t']).replace('Z','+00:00'))
+                if dt.tzinfo is None: dt=dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
+                stamp=dt.timestamp()
+                if not now-8*86400<=stamp<=now: continue
+                bucket=int(stamp//14400)
+                if bucket not in buckets or stamp>buckets[bucket][0]:
+                    buckets[bucket]=(stamp,p)
+            except (KeyError,TypeError,ValueError):
+                continue
+        return [p for _,p in sorted(buckets.values())]
     rows={str(s['id']):s for s in extra.get('stations',[])}
     rows.update({str(s['id']):s for s in water.get('stations',[])})
     temperatures=[]
