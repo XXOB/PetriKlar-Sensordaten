@@ -12,6 +12,9 @@ import gzip
 import hashlib
 import json
 import math
+import time
+import queue
+import threading
 from pathlib import Path
 import re
 from urllib.parse import quote, unquote
@@ -49,12 +52,39 @@ LICENSES = {
 
 
 def read_json(url, body=None):
+    if not url.startswith(NL_BASE):return _read_json(url,body)
+    result=queue.Queue(maxsize=1)
+    def request():
+        try:result.put((True,_read_json(url,body)))
+        except Exception as error:result.put((False,error))
+    # Also bound DNS/TLS/header stalls, which socket read limits do not cover.
+    threading.Thread(target=request,daemon=True).start()
+    try:success,value=result.get(timeout=45)
+    except queue.Empty:raise TimeoutError('RWS request exceeded 45 seconds') from None
+    if not success:raise value
+    return value
+
+
+def _read_json(url, body=None):
     request = Request(url, data=None if body is None else json.dumps(body).encode(),
         headers={'User-Agent': 'PetriKlar/1.0 (+https://www.petriklar.com)',
                  'Accept': 'application/sparql-results+json,application/json',
                  'Content-Type': 'application/json'})
-    with urlopen(request, timeout=40) as response:
-        raw = response.read(32_000_001)
+    started=time.monotonic()
+    with urlopen(request, timeout=20 if url.startswith(NL_BASE) else 40) as response:
+        if url.startswith(NL_BASE):
+            # A socket timeout alone restarts whenever bytes arrive. Bound
+            # slowly trickling RWS responses as well as silent connections.
+            chunks=[]
+            size=0
+            while size<=32_000_000:
+                if time.monotonic()-started>40:raise TimeoutError('RWS response exceeded 40-second budget')
+                chunk=response.read1(min(65536,32_000_001-size))
+                if not chunk:break
+                chunks.append(chunk);size+=len(chunk)
+            raw=b''.join(chunks)
+        else:
+            raw = response.read(32_000_001)
     if len(raw) > 32_000_000:
         raise ValueError('Response exceeds size limit')
     return json.loads(raw) if raw else {}
@@ -190,7 +220,7 @@ def nl_daily_level_history(payload, now):
     days = defaultdict(lambda:defaultdict(list))
     metadata = {}
     if payload.get('Succesvol') is not True:
-        raise ValueError('RWS historical observations unsuccessful')
+        raise ValueError('RWS historical observations unsuccessful: '+str(payload.get('Foutmelding','no details')))
     for series in payload.get('WaarnemingenLijst',[]):
         meta,loc=series.get('AquoMetadata',{}),series.get('Locatie',{})
         if meta.get('Grootheid',{}).get('Code') != 'WATHTE' or meta.get('ProcesType') != 'meting':
@@ -213,7 +243,7 @@ def nl_daily_level_history(payload, now):
 
 
 def nl_backfill_locations(rows, now, budget=2):
-    """Backfill a small number per run to respect RWS fair-use; all map targets finish in ~32 runs."""
+    """Backfill bounded 28-day windows; persist progress and isolate station failures."""
     by_location=defaultdict(list)
     for row in rows:
         if row.get('src')=='rijkswaterstaat' and row.get('source_station') in NL_HISTORY_TARGETS \
@@ -230,30 +260,43 @@ def nl_backfill_locations(rows, now, budget=2):
         except ValueError:is_recent=False
         if not is_recent:stale.append(location)
     completed=[]
-    for location in sorted(stale)[:budget]:
+    errors=[]
+    requests=0
+    deadline=time.monotonic()+150
+    for location in sorted(stale,key=lambda loc:max((s.get('nl_history_attempt_at','') for s in by_location[loc]),default=''))[:budget]:
         parsed={}
-        cursor=now-timedelta(days=730)
-        while cursor<now:
-            end=min(cursor+timedelta(days=365),now)
+        group=by_location[location]
+        saved=max((s.get('nl_history_cursor','') for s in group),default='')
+        cursor=datetime.fromisoformat(saved) if saved else now-timedelta(days=366)
+        while cursor<now and requests<budget and time.monotonic()<deadline:
+            end=min(cursor+timedelta(days=28),now)
             body={'Locatie':{'Code':location},'AquoPlusWaarnemingMetadata':{
                 'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':'WATHTE'},'ProcesType':'meting'}},
                 'Periode':{'Begindatumtijd':cursor.strftime('%Y-%m-%dT%H:%M:%S+00:00'),
                            'Einddatumtijd':end.strftime('%Y-%m-%dT%H:%M:%S+00:00')}}
-            part=nl_daily_level_history(read_json(
-                NL_BASE+'ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen',body),now)
+            requests+=1
+            for row in group:row['nl_history_attempt_at']=now.isoformat()
+            try:
+                part=nl_daily_level_history(read_json(
+                    NL_BASE+'ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen',body),now)
+            except Exception as error:
+                errors.append({'location':location,'error':str(error),'from':cursor.isoformat()})
+                break
             for key,series in part.items():
                 parsed.setdefault(key,{**series,'points':[]})['points'].extend(series['points'])
             cursor=end
+            for row in group:row['nl_history_cursor']=cursor.isoformat()
         checked=now.isoformat()
         for row in by_location[location]:
             unit=next(i['unit'] for i in row['items'] if i['label']=='Pegelstand')
             key=(location,unit,row.get('level_datum'))
             if key in parsed:
                 row.setdefault('history',{}).setdefault('Pegelstand',[]).extend(parsed[key]['points'])
-            row['history_checked_at']=checked
-            row['history_source']='Rijkswaterstaat WaterWebservices v2, same location/unit/NAP'
-        completed.append(location)
-    return {'eligible_locations':len(by_location),'backfilled_locations':completed,'remaining':max(0,len(stale)-len(completed))}
+            if cursor>=now:
+                row['history_checked_at']=checked
+                row['history_source']='Rijkswaterstaat WaterWebservices v2, same location/unit/NAP'
+        if cursor>=now:completed.append(location)
+    return {'eligible_locations':len(by_location),'backfilled_locations':completed,'remaining':max(0,len(stale)-len(completed)), 'requests':requests,'errors':errors}
 
 
 def nl_locations(catalog):
@@ -310,11 +353,16 @@ def parse_nl(payload, now):
 
 
 def collect_nl(now, catalog=None):
+    started=time.monotonic()
     catalog = catalog or read_json(NL_BASE+'METADATASERVICES/OphalenCatalogus',
         {'CatalogusFilter': {'Compartimenten':True,'Grootheden':True,'Eenheden':True,'ProcesTypes':True}})
     locations = nl_locations(catalog)
     rows, errors = [], []
+    deadline=time.monotonic()+180
     def batch(selection):
+        if time.monotonic()>=deadline:
+            errors.append({'locations':[s['Code'] for s in selection],'error':'NL time budget exhausted; retry next run'})
+            return
         body = {'LocatieLijst':[{'Code':s['Code']} for s in selection],
                 'AquoPlusWaarnemingMetadataLijst': [
                     {'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':kind},'ProcesType':'meting'}}
@@ -322,15 +370,23 @@ def collect_nl(now, catalog=None):
         try:
             rows.extend(parse_nl(read_json(NL_BASE+'ONLINEWAARNEMINGENSERVICES/OphalenLaatsteWaarnemingen',body),now))
         except Exception as error:
-            if len(selection)>1:
+            # Splitting a timed-out request multiplies the outage by up to 79
+            # requests per batch. Only split rejected/oversized payloads.
+            if isinstance(error,ValueError) and len(selection)>1:
                 middle=len(selection)//2
                 batch(selection[:middle]);batch(selection[middle:])
             else:
                 errors.append({'locations':[s['Code'] for s in selection],'error':str(error)})
+    # Rotate the starting group so a slow service cannot permanently starve
+    # locations at the end of the catalogue when the time budget expires.
+    if locations:
+        offset=(int(now.timestamp()//3600)%((len(locations)+39)//40))*40
+        locations=locations[offset:]+locations[:offset]
     for start in range(0, len(locations), 40):
         batch(locations[start:start+40])
         print(f'RWS: {min(start+40,len(locations))}/{len(locations)} catalogue locations checked', flush=True)
-    return rows, {'catalogue_locations':len(locations),'failed_batches':errors}
+    return rows, {'catalogue_locations':len(locations),'stations':len(rows),
+                  'elapsed_seconds':round(time.monotonic()-started,1),'failed_batches':errors}
 
 
 def collect_at():
@@ -423,7 +479,7 @@ def main():
                 for key,s in old.items() if key not in received)
     for row in rows:
         prior=old.get(row['id'],{})
-        for key in ('history_checked_at','history_source'):
+        for key in ('history_checked_at','history_source','nl_history_cursor','nl_history_attempt_at'):
             if prior.get(key) and not row.get(key):row[key]=prior[key]
         for label in old.get(row['id'],{}).get('history',{}):
             row.setdefault('history',{}).setdefault(label,[])
