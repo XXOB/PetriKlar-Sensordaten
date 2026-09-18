@@ -14,6 +14,8 @@ import json
 import math
 import re
 import unicodedata
+import http.client
+import time
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
@@ -47,10 +49,22 @@ def _now_text():
     return datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M")
 
 
-def _fetch_bytes(url, timeout=90):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        return response.read()
+def _fetch_bytes(url, timeout=90, versuche=3):
+    # Manche Landesserver - Kaernten vor allem - antworten von den
+    # GitHub-Runnern aus zeitweise sehr langsam oder brechen ab. Ein
+    # einzelner Versuch laesst die Quelle dann still ausfallen, und die
+    # Werte altern unbemerkt. Deshalb mehrmals, mit wachsender Geduld.
+    letzter = None
+    for nummer in range(versuche):
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout * (nummer + 1)) as response:
+                return response.read()
+        except (http.client.IncompleteRead, OSError) as fehler:
+            letzter = fehler
+            if nummer + 1 < versuche:
+                time.sleep(5 * (nummer + 1))
+    raise letzter
 
 
 def _fetch_json(url):

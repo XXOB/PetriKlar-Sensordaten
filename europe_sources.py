@@ -10,6 +10,7 @@ import csv
 from datetime import datetime, timezone, timedelta
 import gzip
 import hashlib
+import http.client
 import json
 import math
 import time
@@ -52,7 +53,17 @@ LICENSES = {
 
 
 def read_json(url, body=None):
-    if not url.startswith(NL_BASE):return _read_json(url,body)
+    if not url.startswith(NL_BASE):
+        # Gestueckelte Antworten reissen gelegentlich ab (IncompleteRead)
+        # und einzelne Behoerdenserver antworten zeitweise sehr langsam.
+        # Einmal lesen genuegt dafuer nicht.
+        letzter=None
+        for nummer in range(3):
+            try:return _read_json(url,body)
+            except (http.client.IncompleteRead,OSError) as fehler:
+                letzter=fehler
+                if nummer<2:time.sleep(5*(nummer+1))
+        raise letzter
     result=queue.Queue(maxsize=1)
     def request():
         try:result.put((True,_read_json(url,body)))
@@ -392,11 +403,18 @@ def collect_nl(now, catalog=None):
 def collect_at():
     import austria_sources as at
     # Verify national feed licence from its own metadata on each collection run.
-    metadata=read_json(at.BMLUK_PEGEL_URL.split('/items?')[0]+'?f=json')
-    if not any(link.get('rel')=='license' and link.get('href')=='https://creativecommons.org/licenses/by/4.0/' for link in metadata.get('links',[])):
-        raise ValueError('BMLUK licence could not be confirmed')
-    rows=at.process_bmluk_current()
-    errors=[]
+    # Scheitert nur der Abruf dieser Metadaten, darf das nicht das ganze Land
+    # mitreissen: dann bleibt der Bundesfeed aussen vor und die Bundeslaender
+    # laufen weiter. Eine nicht bestaetigte Lizenz bleibt ein harter Abbruch.
+    rows=[];errors=[]
+    try:
+        metadata=read_json(at.BMLUK_PEGEL_URL.split('/items?')[0]+'?f=json')
+    except Exception as error:
+        metadata=None;errors.append({'source':'BMLUK Metadaten','error':str(error)})
+    if metadata is not None:
+        if not any(link.get('rel')=='license' and link.get('href')=='https://creativecommons.org/licenses/by/4.0/' for link in metadata.get('links',[])):
+            raise ValueError('BMLUK licence could not be confirmed')
+        rows=at.process_bmluk_current()
     for name,adapter in [('Oberösterreich',at.process_ooe_live),('Kärnten',at.process_kaernten_live)]:
         try:
             rows.extend(adapter())
