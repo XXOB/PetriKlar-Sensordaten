@@ -415,13 +415,18 @@ def collect_at():
         if not any(link.get('rel')=='license' and link.get('href')=='https://creativecommons.org/licenses/by/4.0/' for link in metadata.get('links',[])):
             raise ValueError('BMLUK licence could not be confirmed')
         rows=at.process_bmluk_current()
-    for name,adapter in [('Oberösterreich',at.process_ooe_live),('Kärnten',at.process_kaernten_live)]:
+    for name,adapter in [('Oberösterreich',at.process_ooe_live),('Kärnten',at.process_kaernten_live),('Niederösterreich',at.process_noe_live)]:
         try:
             rows.extend(adapter())
         except Exception as error:
             errors.append({'source':name,'error':str(error)})
     for row in rows:
-        row.update(country='AT',license='CC BY 4.0',license_url='https://creativecommons.org/licenses/by/4.0/')
+        if row.get('src')=='at-noe':
+            # Oeffentlich abrufbarer Kartenfeed des Landes; eine ausdrueckliche
+            # Lizenz ist nicht bestaetigt - so wird es auch angezeigt.
+            row.update(country='AT',license='Öffentlich abrufbar – Lizenz nicht bestätigt',license_url='https://www.noe.gv.at/wasserstand/',attribution='Land Niederösterreich')
+        else:
+            row.update(country='AT',license='CC BY 4.0',license_url='https://creativecommons.org/licenses/by/4.0/')
         from zoneinfo import ZoneInfo
         for item in row['items']:
             item['value']=number(item.get('value'))
@@ -453,7 +458,7 @@ def collect_at():
     from austria_public_tables import supplement
     rows, table_errors = supplement(rows, read_json)
     errors.extend(table_errors)
-    return rows,{'stations':len(rows),'errors':errors,'unverified_sources_excluded':['Niederösterreich-Kartenfeed']}
+    return rows,{'stations':len(rows),'errors':errors,'unverified_sources_excluded':[]}
 
 
 def history_baseline(points, unit, now):

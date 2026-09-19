@@ -1714,13 +1714,32 @@ def retain_cached_neighbor_networks(stations):
     except Exception:
         return stations
     prefixes=("ch-bafu-","nl-rws-","at-")
+    # Seit dem 12.09. holen die Laender-Laeufe (Messwerte AT/CH/NL) diese Netze
+    # und legen sie unter countries/<Land>/current ab. Der deutsche Lauf ruft
+    # sie nicht mehr selbst ab. Ohne diesen Abgleich wuerde der Cache die
+    # Werte vom 12.09. fuer immer weitertragen - App, Pegelkarte und
+    # Gewaesserliste zeigten dann eingefrorene Zahlen fuer Oesterreich.
+    frisch={}
+    for land in ("AT","CH","NL"):
+        datei=BASE_DIR/"countries"/land/"current"/"europe-water.json"
+        try:
+            for s in json.loads(datei.read_text(encoding="utf-8")).get("stations",[]):
+                frisch[str(s.get("id") or "")]=s
+        except Exception:
+            pass
     ids=[str(s.get("id") or "") for s in stations]
     for prefix in prefixes:
         if any(i.startswith(prefix) for i in ids):
             continue
         cached=[s for s in old_rows if str(s.get("id") or "").startswith(prefix)]
         if cached:
-            print(f"[Cache] {len(cached)} Stationen für {prefix} beibehalten")
+            ersetzt=0
+            for nummer,s in enumerate(cached):
+                neu=frisch.get(str(s.get("id") or ""))
+                if neu is not None:
+                    cached[nummer]=neu
+                    ersetzt+=1
+            print(f"[Cache] {len(cached)} Stationen für {prefix}: {ersetzt} aus dem Länder-Lauf erneuert, {len(cached)-ersetzt} alt beibehalten")
             stations.extend(cached)
     return stations
 
