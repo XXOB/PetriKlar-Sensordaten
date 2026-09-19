@@ -49,22 +49,33 @@ def _now_text():
     return datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M")
 
 
-def _fetch_bytes(url, timeout=90, versuche=3):
+def _fetch_bytes(url, timeout=60, versuche=3, budget=150):
     # Manche Landesserver - Kaernten vor allem - antworten von den
     # GitHub-Runnern aus zeitweise sehr langsam oder brechen ab. Ein
     # einzelner Versuch laesst die Quelle dann still ausfallen, und die
     # Werte altern unbemerkt. Deshalb mehrmals, mit wachsender Geduld.
+    #
+    # Das Gesamtbudget je Adresse ist die Bremse: der Workflow hat nur
+    # 15 Minuten fuer ganz Oesterreich. Ohne Deckel koennte allein
+    # Kaernten - Abfluss, Seen und Temperatur - sie vollstaendig
+    # aufbrauchen und alle uebrigen Bundeslaender mitreissen.
+    frist = time.monotonic() + budget
     letzter = None
     for nummer in range(versuche):
+        rest = frist - time.monotonic()
+        if rest <= 5:
+            break
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
         try:
-            with urllib.request.urlopen(req, timeout=timeout * (nummer + 1)) as response:
+            with urllib.request.urlopen(req, timeout=min(timeout * (nummer + 1), rest)) as response:
                 return response.read()
         except (http.client.IncompleteRead, OSError) as fehler:
             letzter = fehler
-            if nummer + 1 < versuche:
-                time.sleep(5 * (nummer + 1))
-    raise letzter
+            if nummer + 1 < versuche and frist - time.monotonic() > 10:
+                time.sleep(3)
+    if letzter is not None:
+        raise letzter
+    raise TimeoutError("Zeitbudget fuer " + url + " erschoepft")
 
 
 def _fetch_json(url):
