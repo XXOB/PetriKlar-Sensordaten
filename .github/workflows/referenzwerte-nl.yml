@@ -1,0 +1,35 @@
+name: Referenzwerte NL
+
+# Vergleichswerte fuer die Pegelkarte in den Niederlanden: je Pegel das 10., 50.
+# und 90. Perzentil der Tagesmediane aus dem letzten vollstaendigen Kalenderjahr
+# (Rijkswaterstaat). Der erste Durchgang braucht mehrere Laeufe, weil jedes
+# Jahresarchiv gross ist; danach sind die Laeufe bis zum Jahreswechsel sofort fertig.
+on:
+  schedule:
+    - cron: "10 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: referenzwerte-NL
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Vergleichswerte aus den Rijkswaterstaat-Jahresdaten berechnen
+        run: python nl_level_references.py --stations countries/NL/current/europe-water.json --budget-minutes 45
+      - name: Speichern
+        run: |
+          git add nl-level-references.json
+          bash commit_sensor_data.sh

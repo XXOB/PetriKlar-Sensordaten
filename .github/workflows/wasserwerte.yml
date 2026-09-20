@@ -51,10 +51,15 @@ jobs:
             test -s pegelkarte.json
           }
 
+      - name: Eigenes Pegelarchiv fuer Stationen ohne Kennwerte
+        timeout-minutes: 8
+        run: |
+          python pegel_tageswerte.py --pegelkarte pegelkarte.json || echo "::warning::Pegelarchiv nicht aktualisiert; Pegelkarte bleibt unveraendert."
+
       - name: Daten speichern
         run: |
           git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json
-          for file in temperatur_zusatz.json gkd_coords.json nlwkn_coords.json undine_coords.json berlin_coords.json; do
+          for file in pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json undine_coords.json berlin_coords.json; do
             [ ! -f "$file" ] || git add "$file"
           done
           bash commit_sensor_data.sh
