@@ -675,7 +675,7 @@ def enrich_gkd_with_nid_oxygen(stations):
 # ------------------------------------------- Niedersachsen (NLWKN live) ----
 NLWKN_URL = "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Messwerte"
 NLWKN_STATION = "https://www.gewaessergueteonline.nlwkn.niedersachsen.de/Station/ID/{id}"
-NLWKN_MAX_AGE_H = 36
+NLWKN_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 
 def load_json_cache(path):
     try: return json.loads(path.read_text(encoding="utf-8"))
@@ -744,7 +744,7 @@ BRANDENBURG_OVERVIEW = ("https://lfu.brandenburg.de/lfu/de/aufgaben/wasser/"
     "fliessgewaesser-und-seen/gewaesserueberwachung/wasserguetemessnetz/")
 BRANDENBURG_SLUGS = ["beeskow","cumlosen","frankfurt-oder","hohenwutzen","kleinmachnow",
                      "leibsch","neuhausen","potsdam","ratzdorf","spremberg"]
-BB_MAX_AGE_H = 48
+BB_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 
 def normalized_header(value):
     return (str(value or "").lower().replace("ä","ae").replace("ö","oe")
@@ -865,7 +865,7 @@ SAXONY_STATIONS = [
     ("Bad Düben","Vereinigte Mulde",51.5900,12.5860,"https://www.wasser.sachsen.de/messstation-bad-dueben-vereinigte-mulde-links-fluss-km-67-18333.html"),
     ("Görlitz","Lausitzer Neiße",51.1520,14.9930,"https://www.wasser.sachsen.de/goerlitz-18253.html"),
 ]
-SAXONY_MAX_AGE_H=48
+SAXONY_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 
 def xlsx_rows(raw):
     """Kleine XLSX-Leseroutine ohne externe Python-Pakete."""
@@ -950,7 +950,7 @@ BERLIN_THEMES = [
     ("oph", "pH-Wert", "", 2),
     ("olf", "Leitfähigkeit", "µS/cm", 0),
 ]
-BERLIN_MAX_AGE_H = 48
+BERLIN_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 BERLIN_MAX_NEW_COORDS = 100
 
 def utm33_to_wgs84(E, N):
@@ -1072,7 +1072,7 @@ def process_berlin():
 # Laborwerte und keine periodischen Probenahmen.
 SAARLAND_LOGIN = "https://seba-hydrocenter.com/login?publicUser=unisaarland"
 SAARLAND_SOURCE = "https://www.gewaesser-monitoring.de/?Messdaten-Saar"
-SAARLAND_MAX_AGE_H = 48
+SAARLAND_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 
 def saarland_river(title):
     low=(title or "").lower()
@@ -1175,7 +1175,7 @@ def process_saarland_live():
 # KISTERS-Portal (hydrologie.nrw.de). Layer 20 = Wassertemperatur: ein JSON-Array mit
 # aktuellem Wert + WGS84-Koordinaten je Station. CORS geschlossen -> serverseitig.
 NRW_URL = "https://www.hydrologie.nrw.de/data/internet/layers/20/index.json"
-NRW_MAX_AGE_H = 24
+NRW_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 
 def _iso_dt(s):
     try: return datetime.fromisoformat(str(s))
@@ -1217,7 +1217,7 @@ def process_nrw():
 # vorhandenen Netzen werden client-seitig beim Zeichnen entfernt.
 UNDINE_REGIONS = ["rhein", "ems", "weser", "elbe", "oder", "donau"]
 UNDINE_COORDS_FILE = BASE_DIR / "undine_coords.json"
-UNDINE_MAX_AGE_H = 30
+UNDINE_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
 UNDINE_STATION_ALIASES = {
     ("rhein", "bimmen"): "bimmen_lobith",
     ("rhein", "koblenz_mosel"): "koblenz_mo",
