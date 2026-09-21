@@ -511,8 +511,19 @@ def process_ooe_live():
 
 def process_kaernten_live():
     grouped = {}
+    successes = 0
+    failures = []
     for url in (KTN_FLOW_URL, KTN_LAKE_URL):
-        obj = _fetch_json(url)
+        try:
+            obj = _fetch_json(url)
+            successes += 1
+        except Exception as error:
+            # Abfluss- und Seepegel sind getrennte Dateien. Ein Timeout bei
+            # einer Datei darf die erfolgreichen Stationen der anderen nicht
+            # wieder auf den letzten (moeglicherweise tagelang alten) Stand setzen.
+            failures.append(f"{url}: {error}")
+            print(f"[Österreich/Kärnten] Teilquelle nicht erreichbar: {url}: {error}")
+            continue
         features = obj.get("features", []) if isinstance(obj, dict) else obj
         for feature in features if isinstance(features, list) else []:
             p = feature.get("properties") or {}
@@ -558,6 +569,8 @@ def process_kaernten_live():
                 if when:
                     st["updated"] = _time_text(when)
     out = list(grouped.values())
+    if not successes:
+        raise OSError("Kärnten-Quellen nicht erreichbar: " + "; ".join(failures))
     print(f"[Österreich/Kärnten] {len(out)} Pegel-/Temperaturstationen")
     return out
 

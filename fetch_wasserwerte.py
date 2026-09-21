@@ -865,7 +865,7 @@ SAXONY_STATIONS = [
     ("Bad Düben","Vereinigte Mulde",51.5900,12.5860,"https://www.wasser.sachsen.de/messstation-bad-dueben-vereinigte-mulde-links-fluss-km-67-18333.html"),
     ("Görlitz","Lausitzer Neiße",51.1520,14.9930,"https://www.wasser.sachsen.de/goerlitz-18253.html"),
 ]
-SAXONY_MAX_AGE_H = 336  # alte Quellwerte bleiben sichtbar; Homepage/App kennzeichnen >36 h als nicht aktuell
+SAXONY_MAX_AGE_H = 72  # alte validierte Zahlen nicht als aktuelle Messung anbieten
 
 def xlsx_rows(raw):
     """Kleine XLSX-Leseroutine ohne externe Python-Pakete."""
@@ -910,13 +910,15 @@ def parse_xlsx_sensors(raw):
     return merged,histories
 
 def process_sachsen():
-    results=[]; now=datetime.now()
+    results=[]; now=datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
     defs={"wt":("Wassertemperatur","°C",1),"o2":("Sauerstoff","mg/l",1),
           "tr":("Trübung","FNU",1),"ph":("pH-Wert","",2),"lf":("Leitfähigkeit","µS/cm",0)}
     for name,river,lat,lon,url in SAXONY_STATIONS:
-        latest={}; history={}; xurl=""; page=""
+        latest={}; history={}; xurl=""; page=""; chart_url=""
         try:
             page=fetch_gkd_html(url)
+            chart_match=re.search(r'https://www\.wasser\.sachsen\.de/stationen/img/[A-Z]+_TW_SW_aktuell\.png',page)
+            if chart_match: chart_url=chart_match.group(0)
             links=[urljoin(url,html_lib.unescape(x)) for x in re.findall(r'href="([^"]+\.xlsx)"',page,re.I)]
             # Auf den Stationsseiten steht die aktuelle 14-Tage-Datei vor den Jahresarchiven.
             xurl=next((x for x in links if "/stationen/download/" in x and "365" not in x.lower()),links[0] if links else "")
@@ -927,13 +929,23 @@ def process_sachsen():
             if (now-dt).total_seconds()>SAXONY_MAX_AGE_H*3600: continue
             label,unit,digits=defs[kind]
             items.append({"label":label,"value":fmt_value(val,digits),"unit":unit,"icon":"",
-                          "time":dt.strftime("%d.%m.%Y %H:%M")})
+                          "time":dt.strftime("%d.%m.%Y %H:%M"),
+                          **({"chart_url":chart_url} if kind=="wt" and chart_url else {})})
+        if chart_url and not any(item['label']=='Wassertemperatur' for item in items):
+            # Die amtliche Grafik zeigt auch noch nicht validierte Messungen.
+            # Ihr Endwert ist kein maschinenlesbarer Zahlenwert; deshalb nur
+            # die Grafik verlinken, keine Temperatur aus Pixeln schaetzen.
+            last_validated=latest.get('wt')
+            items.append({"label":"Wassertemperatur","value":None,"unit":"°C","icon":"",
+                          "time":last_validated[0].strftime("%d.%m.%Y %H:%M") if last_validated else "",
+                          "chart_url":chart_url,"quality":"unvalidated_chart"})
         low=normalized_header(clean_html(page))
         params={"wt":"wassertemperatur" in low or "wt" in latest,
                 "o2":"sauerstoff" in low or "o2" in latest,
                 "tr":"truebung" in low or "tr" in latest}
         results.append({"id":"sn-"+normalized_header(name).replace(" ","-"),"name":name,"lat":lat,"lon":lon,
             "river":river,"updated":now_text(),"src":"sachsen","source_url":url,"download_url":xurl,
+            "provisional_chart_url":chart_url,
             "params":params,"items":items,"history":history})
     print(f"[Sachsen/BfUL] {len(results)} automatische Gütestationen")
     return results
