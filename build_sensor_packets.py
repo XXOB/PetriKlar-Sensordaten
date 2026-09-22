@@ -43,11 +43,12 @@ def retain(points, now):
 def build(root, output):
     water=read(root/'wasserwerte.json')
     extra=read(root/'temperatur_zusatz.json')
+    niz=read(root/'niz_temperature.json')
     archive=read(root/'wassertemperatur_verlauf.json')
     levels=read(root/'pegelkarte.json') or read(root/'assets/data/water-levels.json')
     now=datetime.now(timezone.utc).timestamp()
     def recent(points):
-        # Last real observation in each UTC four-hour bucket; never average
+        # Last real observation in each UTC six-hour bucket; never average
         # or relabel readings. Keep an extra day for the seven-day viewport.
         buckets={}
         for p in points:
@@ -56,7 +57,7 @@ def build(root, output):
                 if dt.tzinfo is None: dt=dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
                 stamp=dt.timestamp()
                 if not now-8*86400<=stamp<=now: continue
-                bucket=int(stamp//14400)
+                bucket=int(stamp//21600)
                 if bucket not in buckets or stamp>buckets[bucket][0]:
                     buckets[bucket]=(stamp,p)
             except (KeyError,TypeError,ValueError):
@@ -64,6 +65,7 @@ def build(root, output):
         return [p for _,p in sorted(buckets.values())]
     rows={str(s['id']):s for s in extra.get('stations',[])}
     rows.update({str(s['id']):s for s in water.get('stations',[])})
+    rows.update({str(s['id']):s for s in niz.get('stations',[])})
     temperatures=[]
     for row in rows.values():
         items=[i for i in row.get('items',[]) if 'wassertemperatur' in i.get('label','').lower()]
@@ -71,7 +73,7 @@ def build(root, output):
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
     short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}
-    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns','mur','drau','traun'}
+    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns','mur','drau','traun','isar','neckar','leine','aller','ems'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
         return river in rivers or 'bodensee' in river

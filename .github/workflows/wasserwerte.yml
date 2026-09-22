@@ -51,6 +51,14 @@ jobs:
             test -s pegelkarte.json
           }
 
+      - name: Neckar-Temperaturen aus dem amtlichen NIZ abrufen
+        timeout-minutes: 2
+        run: |
+          python fetch_niz_temperature.py --output niz_temperature.json || {
+            echo "::warning::NIZ-Abruf fehlgeschlagen; letzter Stand bleibt erhalten."
+            test -s niz_temperature.json
+          }
+
       - name: Eigenes Pegelarchiv fuer Stationen ohne Kennwerte
         timeout-minutes: 8
         run: |
@@ -58,7 +66,7 @@ jobs:
 
       - name: Daten speichern
         run: |
-          git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json
+          git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json
           for file in pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json undine_coords.json berlin_coords.json; do
             [ ! -f "$file" ] || git add "$file"
           done
