@@ -24,6 +24,36 @@ from urllib.request import Request, urlopen
 
 from europe_sources import history_baseline
 
+# Vorlaeufiger Vergleich, solange das eigene Archiv noch kein volles Jahr hat.
+# Fuer Schleusen-, Kanal- und Tidepegel gibt es amtlich gar kein MW/MNW - dort
+# ist dieser empirische Vergleich die einzige Einordnung. Er wird als
+# vorlaeufig gekennzeichnet und mit jedem Tag besser.
+PROVISIONAL_MIN_DAYS = 90
+
+
+def provisional_baseline(days, today):
+    window = {d: v for d, v in days.items() if (today - d).days <= 365}
+    if len(window) < PROVISIONAL_MIN_DAYS:
+        return None
+    ds = sorted(window)
+    if (ds[-1] - ds[0]).days < PROVISIONAL_MIN_DAYS + 10:
+        return None
+    if max((b - a).days for a, b in zip(ds, ds[1:])) > 21:
+        return None
+    values = sorted(window.values())
+
+    def quantile(share):
+        index = (len(values) - 1) * share
+        low = int(index)
+        return values[low] + (values[min(low + 1, len(values) - 1)] - values[low]) * (index - low)
+
+    low, center, high = quantile(.1), quantile(.5), quantile(.9)
+    if not low < center < high:
+        return None
+    return dict(method='daily-median-p10-p50-p90', low=round(low, 1), center=round(center, 1),
+                high=round(high, 1), unit='cm', start=str(ds[0]), end=str(ds[-1]), days=len(ds),
+                provisional=True)
+
 ROOT = Path(__file__).resolve().parent
 STORE = ROOT / 'pegel-tageswerte.json'
 API = 'https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/'
@@ -118,10 +148,12 @@ def main():
     for s in targets:
         days = expand(archive.get(s['id']))
         points = [{'t': d.isoformat() + 'T12:00:00+00:00', 'v': v} for d, v in sorted(days.items())]
-        b = history_baseline(points, 'cm', now)
+        b = history_baseline(points, 'cm', now) or provisional_baseline(days, today)
         if b:
             b.update(low=round(b['low'], 1), center=round(b['center'], 1), high=round(b['high'], 1),
                      source='PetriKlar-Archiv aus PEGELONLINE-Tagesmedianen')
+            if b.get('provisional'):
+                b['note'] = 'Vorlaeufig: Vergleich aus bisher gesammelten Tageswerten'
             s['history_baseline'] = b
             with_baseline += 1
     store.update(updated=now.isoformat(), errors=errors)
