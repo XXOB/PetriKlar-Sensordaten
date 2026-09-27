@@ -1,0 +1,44 @@
+name: Temperaturarchiv nachtragen
+
+# Neue Gewaesser im 366-Tage-Archiv haben dort keine Vergangenheit. Dieses
+# Skript holt sie bei den Quellen, die einen Zeitraum anbieten (GKD Bayern,
+# PEGELONLINE 31 Tage, die gesammelte europe-history.json). Von Hand starten
+# oder monatlich; erfundene Werte entstehen dabei nicht.
+on:
+  schedule:
+    - cron: "20 2 3 * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Wie weit zurueck nachtragen (Tage)"
+        default: "120"
+      river:
+        description: "Nur dieses Gewaesser (leer = alle)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temperaturarchiv
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Vergangenheit nachtragen
+        run: |
+          python seed_temperature_archive.py --days "${{ github.event.inputs.days || '120' }}" \
+            ${{ github.event.inputs.river && format('--only "{0}"', github.event.inputs.river) || '' }}
+      - name: Speichern
+        run: |
+          git add wassertemperatur_verlauf.json
+          bash commit_sensor_data.sh

@@ -69,18 +69,24 @@ def references(series):
     return refs, None
 
 
+# Acht Tage stundengenau fuer die Wochenansicht, davor bis 31 Tage alle zwoelf
+# Stunden fuer die Monatsansicht der Pegelkarte.
+DEEP_DAYS = 31
+
+
 def hourly(points, now):
     """Preserve an actual observation per hour, including the last partial hour."""
-    hours = {}
+    buckets = {}
     for p in points:
         t, v = p.get('timestamp', p.get('t')), number(p.get('value', p.get('v')))
         ts = timestamp(t)
-        if v is None or ts is None or not now - 8 * 86400 <= ts <= now + 900:
+        if v is None or ts is None or not now - DEEP_DAYS * 86400 <= ts <= now + 900:
             continue
-        bucket = int(ts // 3600)
-        if bucket not in hours or ts > timestamp(hours[bucket]['t']):
-            hours[bucket] = {'t': t, 'v': v}
-    return [hours[k] for k in sorted(hours)]
+        span = 3600 if ts >= now - 8 * 86400 else 12 * 3600
+        bucket = (span, int(ts // span))
+        if bucket not in buckets or ts > timestamp(buckets[bucket]['t']):
+            buckets[bucket] = {'t': t, 'v': v}
+    return [buckets[k] for k in sorted(buckets, key=lambda key: timestamp(buckets[key]['t']))]
 
 
 def convert(inventory, previous, now):
@@ -132,8 +138,12 @@ def main():
     failures = []
     if not args.no_history:
         selected = [s for s in stations if s['mapped_river']]
+        # Einmal taeglich den vollen Monat holen, sonst die letzten acht Tage.
+        old_deep = {s['id']: timestamp(s.get('history_deep_at')) or 0 for s in previous.get('stations', [])}
+        deep = {s['id']: now.timestamp() - old_deep.get(s['id'], 0) > 23 * 3600 for s in selected}
         with ThreadPoolExecutor(max_workers=4) as pool:
-            tasks = {pool.submit(fetch, API + 'stations/' + s['id'] + '/W/measurements.json?start=P8D'): s for s in selected}
+            tasks = {pool.submit(fetch, API + 'stations/' + s['id'] + '/W/measurements.json?start='
+                                 + ('P31D' if deep[s['id']] else 'P8D')): s for s in selected}
             for future in as_completed(tasks):
                 station = tasks[future]
                 try:
@@ -141,6 +151,9 @@ def main():
                     if not isinstance(points, list) or not points:
                         raise ValueError('Empty history')
                     station['history'] = hourly(station['history'] + points + [station['current']], now.timestamp())
+                    station['history_deep_at'] = (now.isoformat() if deep[station['id']]
+                                                  else next((s.get('history_deep_at') for s in previous.get('stations', [])
+                                                             if s['id'] == station['id']), None))
                 except Exception as exc:
                     failures.append({'id': station['id'], 'error': str(exc)[:140]})
         print(f'History: {len(selected) - len(failures)}/{len(selected)} retrieved')

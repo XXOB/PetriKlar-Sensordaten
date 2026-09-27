@@ -73,7 +73,7 @@ def build(root, output):
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
     short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}
-    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns','mur','drau','traun','isar','neckar','leine','aller','ems'}
+    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns','mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
         return river in rivers or 'bodensee' in river
@@ -85,6 +85,11 @@ def build(root, output):
         except ValueError:
             return value
     write(output/'level-map.json',{**{k:v for k,v in levels.items() if k in ('schema','fetched_at','source_url')},'packed_history':True,'stations':[{**s,'history':[[compact_time(p['t']),p['v']] for p in recent(s.get('history',[]))]} for s in levels.get('stations',[])]})
+    # Monatsverlauf der Pegel getrennt ablegen: die Wochenkarte bleibt klein,
+    # die 30-Tage-Ansicht laedt diese Datei nur bei Bedarf.
+    write(output/'level-history.json',{'fetched_at':levels.get('fetched_at'),'packed_history':True,
+        'stations':[{'id':s['id'],'history':[[compact_time(p['t']),p['v']] for p in s.get('history',[])]}
+                    for s in levels.get('stations',[]) if s.get('history')]})
     # Stable opaque filenames avoid source IDs becoming filesystem paths.
     index=[]
     archive_by_id={str(s['id']):s.get('values',[]) for s in archive.get('stations',[])}
