@@ -44,6 +44,10 @@ def build(root, output):
     water=read(root/'wasserwerte.json')
     extra=read(root/'temperatur_zusatz.json')
     niz=read(root/'niz_temperature.json')
+    # Die Nachbarnetze holen eigene Laeufe (Messwerte AT/CH/NL). Ohne sie
+    # fehlen dem Paket die Stationen von Land Tirol, Vorarlberg, BAFU und
+    # Rijkswaterstaat, und jede Karte muesste sie im Browser nachladen.
+    europe=read(root/'europe-temperature.json')
     archive=read(root/'wassertemperatur_verlauf.json')
     levels=read(root/'pegelkarte.json') or read(root/'assets/data/water-levels.json')
     now=datetime.now(timezone.utc).timestamp()
@@ -66,6 +70,32 @@ def build(root, output):
     rows={str(s['id']):s for s in extra.get('stations',[])}
     rows.update({str(s['id']):s for s in water.get('stations',[])})
     rows.update({str(s['id']):s for s in niz.get('stations',[])})
+    def stamp_of(value):
+        try:
+            dt=datetime.fromisoformat(str(value).replace('Z','+00:00'))
+        except (TypeError,ValueError):
+            return 0.0
+        if dt.tzinfo is None: dt=dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
+        return dt.timestamp()
+    # Dieselbe Station kann in beiden Laeufen stehen; die Laeufe starten zu
+    # verschiedenen Minuten. Es gewinnt der juengere Messwert, nicht die
+    # zuletzt gelesene Datei.
+    for station in europe.get('stations',[]):
+        key=str(station.get('id') or '')
+        if not key: continue
+        known=rows.get(key)
+        if known is None:
+            rows[key]=station
+            continue
+        by_label={i.get('label'):i for i in (known.get('items') or [])}
+        for item in (station.get('items') or []):
+            old=by_label.get(item.get('label'))
+            if old is None or stamp_of(item.get('time'))>stamp_of(old.get('time')):
+                by_label[item.get('label')]=item
+        history=dict(known.get('history') or {})
+        for label,points in (station.get('history') or {}).items():
+            if not history.get(label): history[label]=points
+        rows[key]={**known,'items':list(by_label.values()),'history':history}
     temperatures=[]
     for row in rows.values():
         items=[i for i in row.get('items',[]) if 'wassertemperatur' in i.get('label','').lower()]
@@ -73,7 +103,13 @@ def build(root, output):
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
     short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}
-    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj','mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns','mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems'}
+    # Alles, was die Karte zeichnet. Fehlt ein Name hier, verschwinden seine
+    # Stationen still aus dem Paket, obwohl die Linie gezeichnet wird.
+    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj',
+            'mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns',
+            'mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems',
+            'aare','reuss','limmat','ticino','rhône','rhone','ijssel','lek','maas','nederrijn','waal',
+            'rhein-maas-delta'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
         return river in rivers or 'bodensee' in river
