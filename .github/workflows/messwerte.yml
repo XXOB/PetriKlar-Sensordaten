@@ -3,14 +3,17 @@
 # Vorher lagen DE, AT, CH und NL in vier getrennten Workflows mit eigenem
 # Cron. GitHub drosselt geplante Laeufe pro Repository: die vier liefen
 # tatsaechlich nur alle vier bis sechs Stunden und zu verschiedenen Zeiten.
-# Damit lagen die Messwerte der Laender regelmaessig Stunden auseinander,
-# und das Vier-Stunden-Fenster der Flussprofile behielt nur ein Land uebrig.
+# Damit lagen die Laender-Messwerte regelmaessig Stunden auseinander, und das
+# Vier-Stunden-Fenster der Flussprofile behielt nur ein Land uebrig.
 #
-# Jetzt laufen alle vier nacheinander auf demselben Runner. Die Abrufe liegen
-# dadurch Minuten statt Stunden auseinander. Zwischendurch wird einmal
-# gespeichert, damit ein Abbruch im langen DE-Schritt die schnellen Laender
-# nicht mitnimmt. Jeder Laenderschritt darf scheitern, ohne den Rest zu
-# stoppen - der letzte datierte Stand bleibt dann erhalten.
+# Reihenfolge und Fehlertoleranz sind bewusst gewaehlt:
+#   1. leichte Abhaengigkeiten, dann AT, CH, NL - wenige Minuten, kein Browser
+#   2. Zwischenspeichern, damit ein Abbruch im langen DE-Teil sie nicht mitnimmt
+#   3. Playwright/Chromium, dann DE und die deutschen Zusatzquellen
+#   4. abschliessend speichern, auch wenn vorher etwas schiefging
+# Jeder Abrufschritt darf scheitern, ohne den Rest zu stoppen. Schlaegt ein
+# Land fehl, bleibt dessen letzter datierter Stand erhalten und erscheint im
+# Lauf als Warnung - der Rest wird trotzdem geholt und veroeffentlicht.
 
 name: Messwerte
 
@@ -44,14 +47,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Abhaengigkeiten installieren
-        timeout-minutes: 10
+      # Bewusst getrennt: die drei schnellen Laender brauchen keinen Browser
+      # und sollen nicht an einer fehlgeschlagenen Chromium-Installation
+      # scheitern.
+      - name: Leichte Abhaengigkeiten
+        timeout-minutes: 5
         run: |
           python -m pip install --upgrade pip
-          python -m pip install playwright pyproj beautifulsoup4
-          python -m playwright install --with-deps chromium
+          python -m pip install pyproj beautifulsoup4
 
-      # Zuerst die schnellen Laender: wenige Minuten, keine Browser noetig.
       - name: Oesterreich
         timeout-minutes: 12
         run: python country_pipeline.py AT || echo "::warning::AT nicht aktualisiert; letzter Stand bleibt erhalten."
@@ -71,13 +75,27 @@ jobs:
           done
           bash commit_sensor_data.sh
 
+      - name: Playwright und Chromium installieren
+        timeout-minutes: 10
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      # fetch_wasserwerte.py schreibt wasserwerte.json erst ganz am Ende in
+      # einem Rutsch. Bricht der Abruf ab, bleibt die letzte vollstaendige
+      # Datei unveraendert liegen - deshalb darf der Schritt scheitern.
       - name: Deutschland
         timeout-minutes: 25
         env:
           PETRIKLAR_COUNTRY: DE
-        run: python fetch_wasserwerte.py
+        run: |
+          python fetch_wasserwerte.py || {
+            echo "::warning::DE nicht aktualisiert; letzter datierter Stand bleibt erhalten."
+            test -s wasserwerte.json
+          }
 
       - name: Pegelkarte mit amtlichen Kennwerten aktualisieren
+        if: always()
         timeout-minutes: 6
         run: |
           python fetch_water_levels.py --output pegelkarte.json --austria wasserwerte.json || {
@@ -86,6 +104,7 @@ jobs:
           }
 
       - name: Neckar-Temperaturen aus dem amtlichen NIZ abrufen
+        if: always()
         timeout-minutes: 2
         run: |
           python fetch_niz_temperature.py --output niz_temperature.json || {
@@ -94,6 +113,7 @@ jobs:
           }
 
       - name: Eigenes Pegelarchiv fuer Stationen ohne Kennwerte
+        if: always()
         timeout-minutes: 8
         run: |
           python pegel_tageswerte.py --pegelkarte pegelkarte.json || echo "::warning::Pegelarchiv nicht aktualisiert; Pegelkarte bleibt unveraendert."
@@ -101,8 +121,9 @@ jobs:
       - name: Daten speichern
         if: always()
         run: |
-          git add wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json
-          for file in pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json undine_coords.json berlin_coords.json; do
+          for file in wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json \
+                      pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json \
+                      undine_coords.json berlin_coords.json; do
             [ ! -f "$file" ] || git add "$file"
           done
           for land in AT CH NL; do
