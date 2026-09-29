@@ -55,4 +55,4 @@ Insbesondere ist „noch nicht aktiviert“ **kein** pauschales rechtliches Verb
 Die geografische 50-km-Ausblendung und die Plausibilitätsprüfung finden im
 Frontend statt. Sie löschen keine Originaldaten im Archiv. Für diese Erweiterung
 genügt Commit/Push dieses Repositories und der nächste stündliche Workflow;
-ein manueller Start von `wasserwerte.yml` beschleunigt den ersten Datenabruf.
+ein manueller Start von `messwerte.yml` beschleunigt den ersten Datenabruf.

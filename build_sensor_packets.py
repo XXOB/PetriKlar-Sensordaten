@@ -44,7 +44,7 @@ def build(root, output):
     water=read(root/'wasserwerte.json')
     extra=read(root/'temperatur_zusatz.json')
     niz=read(root/'niz_temperature.json')
-    # Die Nachbarnetze holen eigene Laeufe (Messwerte AT/CH/NL). Ohne sie
+    # Die Nachbarnetze holt derselbe Lauf (Messwerte, Schritte AT/CH/NL). Ohne sie
     # fehlen dem Paket die Stationen von Land Tirol, Vorarlberg, BAFU und
     # Rijkswaterstaat, und jede Karte muesste sie im Browser nachladen.
     europe=read(root/'europe-temperature.json')

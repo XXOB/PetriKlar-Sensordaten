@@ -1728,7 +1728,7 @@ def retain_cached_neighbor_networks(stations):
     except Exception:
         return stations
     prefixes=("ch-bafu-","nl-rws-","at-")
-    # Seit dem 12.09. holen die Laender-Laeufe (Messwerte AT/CH/NL) diese Netze
+    # Seit dem 12.09. holen die Laender-Schritte des Messwerte-Laufs diese Netze
     # und legen sie unter countries/<Land>/current ab. Der deutsche Lauf ruft
     # sie nicht mehr selbst ab. Ohne diesen Abgleich wuerde der Cache die
     # Werte vom 12.09. fuer immer weitertragen - App, Pegelkarte und

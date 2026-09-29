@@ -1,7 +1,7 @@
 name: Sensordaten veröffentlichen
 on:
   workflow_run:
-    workflows: [Messwerte DE, Messwerte AT, Messwerte CH, Messwerte NL, Pegelhistorie ergänzen, Temperaturarchiv nachtragen]
+    workflows: [Messwerte, Pegelhistorie ergänzen, Temperaturarchiv nachtragen]
     types: [completed]
     branches: [main]
   workflow_dispatch:
