@@ -13,7 +13,9 @@ from datetime import datetime, timezone
 
 RIVERS = {x.casefold(): x for x in ("Rhein", "Main", "Mosel", "Donau", "Weser", "Elbe", "Oder", "Inn", "Lech",
                                     "Neckar", "Isar", "Leine", "Aller", "Ems", "Saale",
-                                    "Salzach", "Enns", "Mur", "Drau", "Traun", "Bodensee")}
+                                    "Salzach", "Enns", "Mur", "Drau", "Traun", "Bodensee", "Spree")}
+RIVERS["spree-oder-wasserstrasse"] = "Spree"
+RIVERS["spree-oder-wasserstraße"] = "Spree"
 PO = "https://www.pegelonline.wsv.de/webservices/rest-api/v2/"
 NIZ = "https://inovum-services.de/gmb/md/v1/gewaesser;1.0.0?page%5Blimit%5D=1000"
 HLNUG = "https://app.hlnug.de/json/wasser/"

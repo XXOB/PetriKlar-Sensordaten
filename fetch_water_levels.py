@@ -20,7 +20,8 @@ API = 'https://www.pegelonline.wsv.de/webservices/rest-api/v2/'
 INVENTORY_URL = API + 'stations.json?includeTimeseries=true&includeCharacteristicValues=true&includeCurrentMeasurement=true'
 RIVERS = {'RHEIN': 'Rhein', 'ELBE': 'Elbe', 'DONAU': 'Donau', 'MAIN': 'Main',
           'MOSEL': 'Mosel', 'WESER': 'Weser', 'ODER': 'Oder',
-          'NECKAR': 'Neckar', 'LEINE': 'Leine', 'ALLER': 'Aller', 'EMS': 'Ems'}
+          'NECKAR': 'Neckar', 'LEINE': 'Leine', 'ALLER': 'Aller', 'EMS': 'Ems',
+          'SPREE-ODER-WASSERSTRASSE': 'Spree'}
 
 
 def fetch(url):

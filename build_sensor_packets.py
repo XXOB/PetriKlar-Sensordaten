@@ -108,7 +108,7 @@ def build(root, output):
     rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj',
             'mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns',
             'mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems',
-            'aare','reuss','limmat','ticino','rhône','rhone','ijssel','lek','maas','nederrijn','waal',
+            'aare','reuss','limmat','ticino','rhône','rhone','ijssel','lek','maas','nederrijn','waal','spree',
             'rhein-maas-delta'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
