@@ -112,6 +112,22 @@ jobs:
             test -s niz_temperature.json
           }
 
+      # Havel (Potsdam) und Spree: Das LfU Brandenburg veroeffentlicht den
+      # aktuellen Wert nur im Titel seiner 31-Tage-Diagramme; die CSV hinkt
+      # Wochen hinterher. Der Abruf lief frueher nur in PetriKlar-Source - die
+      # Live-Karte liest aber dieses Repository, und die Havel fiel aus.
+      - name: Havel- und Spree-Temperaturen aus LfU-Diagrammen lesen
+        if: always()
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu
+          python -m pip install Pillow
+          python fetch_lfu_brandenburg_temperatures.py || {
+            echo "::warning::LfU-Diagramm konnte nicht gelesen werden; letzter gespeicherter Stand bleibt erhalten."
+            test -s assets/data/lfu-brandenburg-current.json
+          }
+
       - name: Eigenes Pegelarchiv fuer Stationen ohne Kennwerte
         if: always()
         timeout-minutes: 8
@@ -123,7 +139,7 @@ jobs:
         run: |
           for file in wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json \
                       pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json \
-                      undine_coords.json berlin_coords.json; do
+                      undine_coords.json berlin_coords.json assets/data/lfu-brandenburg-current.json; do
             [ ! -f "$file" ] || git add "$file"
           done
           for land in AT CH NL; do

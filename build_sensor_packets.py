@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -17,6 +18,16 @@ def write(path, value):
     temporary=path.with_suffix('.tmp')
     temporary.write_text(json.dumps(value,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf8')
     temporary.replace(path)
+
+
+def numeric(value):
+    if value is None or isinstance(value,bool):
+        return None
+    try:
+        parsed=float(str(value).replace(',','.'))
+        return parsed if math.isfinite(parsed) else None
+    except (TypeError,ValueError):
+        return None
 
 
 def retain(points, now):
@@ -44,12 +55,19 @@ def build(root, output):
     water=read(root/'wasserwerte.json')
     extra=read(root/'temperatur_zusatz.json')
     niz=read(root/'niz_temperature.json')
-    # Die Nachbarnetze holt derselbe Lauf (Messwerte, Schritte AT/CH/NL). Ohne sie
+    # Brandenburg publishes current Havel/Spree readings in 31-day charts;
+    # its downloadable hourly CSV can lag behind. The updater stores only the
+    # explicitly printed latest value, never a value inferred from the graph.
+    brandenburg_snapshot=read(root/'assets/data/lfu-brandenburg-current.json')
+    # Die Nachbarnetze holen eigene Laeufe (Messwerte AT/CH/NL). Ohne sie
     # fehlen dem Paket die Stationen von Land Tirol, Vorarlberg, BAFU und
     # Rijkswaterstaat, und jede Karte muesste sie im Browser nachladen.
-    europe=read(root/'europe-temperature.json')
+    europe=read(root/'europe-temperature.json') or read(root/'assets/data/europe-temperature.json')
+    nl_waters=read(root/'assets/data/nl-gewaesser.json').get('waters',{})
     archive=read(root/'wassertemperatur_verlauf.json')
     levels=read(root/'pegelkarte.json') or read(root/'assets/data/water-levels.json')
+    europe_levels=read(root/'europe-level.json') or read(root/'assets/data/europe-level.json')
+    river_additions=read(root/'assets/data/river-sensor-additions.json')
     now=datetime.now(timezone.utc).timestamp()
     def recent(points):
         # Last real observation in each UTC six-hour bucket; never average
@@ -70,22 +88,118 @@ def build(root, output):
     rows={str(s['id']):s for s in extra.get('stations',[])}
     rows.update({str(s['id']):s for s in water.get('stations',[])})
     rows.update({str(s['id']):s for s in niz.get('stations',[])})
+    rows.update({str(s['id']):s for s in brandenburg_snapshot.get('stations',[])})
     def stamp_of(value):
         try:
             dt=datetime.fromisoformat(str(value).replace('Z','+00:00'))
         except (TypeError,ValueError):
-            return 0.0
+            try:
+                dt=datetime.strptime(str(value), '%d.%m.%Y %H:%M').replace(tzinfo=ZoneInfo('Europe/Berlin'))
+            except (TypeError,ValueError):
+                return 0.0
         if dt.tzinfo is None: dt=dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
         return dt.timestamp()
+    def rws_series_key(station):
+        if station.get('src') != 'rijkswaterstaat' or not station.get('source_station'):
+            return None
+        return (str(station['source_station']).casefold(),
+                str(station.get('sampling_height') or ''),
+                str(station.get('sampling_reference') or ''))
+
+    def level_timestamp(station):
+        current=station.get('current') or {}
+        # Some feeds leave a plausible timestamp beside a null/no-data value.
+        # It must not outrank an older but real measurement from another source.
+        if numeric(current.get('v',current.get('value'))) is None:
+            return 0.0
+        return stamp_of(current.get('t'))
+
+    def merge_level(old, new):
+        """Keep the newest real reading, and union history by timestamp/value."""
+        old_time,new_time=level_timestamp(old),level_timestamp(new)
+        winner={**old,**new} if new_time>=old_time else {**new,**old}
+        winner['current']=(new.get('current') if new_time>=old_time else old.get('current')) or {}
+        points=[]
+        for station in (old,new):
+            history=station.get('history') or []
+            if isinstance(history,dict):
+                history=history.get('Pegelstand') or []
+            if isinstance(history,list):
+                points.extend(history)
+            current=station.get('current') or {}
+            if current.get('t') is not None:
+                points.append(current)
+        by_key={}
+        for point in points:
+            if not isinstance(point,dict) or point.get('t') is None:
+                continue
+            value=numeric(point.get('v',point.get('value')))
+            if value is None:
+                continue
+            key=(str(point['t']),value)
+            by_key[key]={'t':point['t'],'v':value}
+        winner['history']=sorted(by_key.values(),key=lambda p:stamp_of(p['t']))
+        return winner
+
+    # Build the first-paint level packet from both the local WSV snapshot and
+    # the published European snapshot. Previously the browser merged Europe
+    # only after load, so Austria (including most Mur/Drau gauges) was absent
+    # from the static packet.
+    level_rows={str(s.get('id')):s for s in levels.get('stations',[])
+                if s.get('id') and numeric((s.get('current') or {}).get('v',(s.get('current') or {}).get('value')))!=-777}
+    for source in (europe_levels.get('stations',[]),river_additions.get('level_stations',[])):
+        for raw in source:
+            station=dict(raw)
+            if not station.get('id'):
+                continue
+            item=next((i for i in station.get('items',[]) if i.get('label')=='Pegelstand'),None)
+            current=station.get('current') or {}
+            if item:
+                current={'v':numeric(item.get('value')),'t':item.get('time')}
+                station['unit']=item.get('unit') or station.get('unit')
+            else:
+                current={'v':numeric(current.get('v',current.get('value'))),'t':current.get('t')}
+            if current['v'] is None or not current.get('t'):
+                continue
+            # Tirol's -777 is a documented missing-value sentinel, not a level.
+            if current['v']==-777:
+                continue
+            source_id=station.get('src') or station.get('source')
+            station['source']=station.get('source') or source_id
+            station['current']=current
+            history=station.get('history') or []
+            if isinstance(history,dict):
+                history=history.get('Pegelstand') or []
+            station['history']=history if isinstance(history,list) else []
+            key=str(station['id'])
+            level_rows[key]=merge_level(level_rows[key],station) if key in level_rows else station
+    level_updates=[value for value in (levels.get('fetched_at'),europe_levels.get('updated'),river_additions.get('updated')) if value]
+    newest_level_update=max(level_updates,key=stamp_of) if level_updates else levels.get('fetched_at')
+    levels={**levels,'fetched_at':newest_level_update,'stations':list(level_rows.values())}
+
+    # Dieselbe RWS-Messreihe kann in Live- und Auslandssnapshot unter leicht
+    # verschiedenen IDs stehen. Ueber Stationscode und Messhorizont zusammen-
+    # fuehren, sonst entstehen Duplikate statt dass der frischere Wert gewinnt.
+    rws_keys={rws_series_key(station): key for key,station in rows.items() if rws_series_key(station)}
     # Dieselbe Station kann in beiden Laeufen stehen; die Laeufe starten zu
     # verschiedenen Minuten. Es gewinnt der juengere Messwert, nicht die
     # zuletzt gelesene Datei.
     for station in europe.get('stations',[]):
+        station=dict(station)
+        if station.get('country')=='NL' and not station.get('river'):
+            station['river']=nl_waters.get(station.get('name',''), '')
+            # Die Karte zeichnet Bovenrijn als niederlaendischen Rheinabschnitt.
+            if station['river']=='Bovenrijn':
+                station['river']='Rhein'
         key=str(station.get('id') or '')
         if not key: continue
+        series_key=rws_series_key(station)
+        key=rws_keys.get(series_key,key)
         known=rows.get(key)
         if known is None:
             rows[key]=station
+            if series_key:
+                rws_keys[series_key]=key
             continue
         by_label={i.get('label'):i for i in (known.get('items') or [])}
         for item in (station.get('items') or []):
@@ -95,7 +209,8 @@ def build(root, output):
         history=dict(known.get('history') or {})
         for label,points in (station.get('history') or {}).items():
             if not history.get(label): history[label]=points
-        rows[key]={**known,'items':list(by_label.values()),'history':history}
+        rows[key]={**known,'river':known.get('river') or station.get('river'),
+                   'items':list(by_label.values()),'history':history}
     temperatures=[]
     for row in rows.values():
         items=[i for i in row.get('items',[]) if 'wassertemperatur' in i.get('label','').lower()]
@@ -109,11 +224,16 @@ def build(root, output):
             'mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns',
             'mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems',
             'aare','reuss','limmat','ticino','rhône','rhone','ijssel','lek','maas','nederrijn','waal','spree',
-            'rhein-maas-delta'}
+            'rhein-maas-delta','havel'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
-        return river in rivers or 'bodensee' in river
-    write(output/'temperature-map.json',{'data':{'stations':[s for s in temperatures if mapped(s)]},'archive':{**short_archive,'stations':[s for s in short_archive['stations'] if mapped(s)]},'updated':water.get('updated')})
+        tokens=re.findall(r'[^\W_]+',river,flags=re.UNICODE)
+        return river in rivers or any(token in rivers for token in tokens) or 'bodensee' in river
+    update_candidates=[(stamp_of(value),value) for value in
+        (water.get('updated'),niz.get('updated'),brandenburg_snapshot.get('updated'),europe.get('updated'),
+         europe_levels.get('updated'),river_additions.get('updated')) if value]
+    latest_update=max(update_candidates,default=(0,water.get('updated')),key=lambda item:item[0])[1]
+    write(output/'temperature-map.json',{'data':{'stations':[s for s in temperatures if mapped(s)]},'archive':{**short_archive,'stations':[s for s in short_archive['stations'] if mapped(s)]},'updated':latest_update})
     def compact_time(value):
         try:
             dt=datetime.fromisoformat(str(value).replace('Z','+00:00'))
