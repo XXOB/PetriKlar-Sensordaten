@@ -68,6 +68,9 @@ def build(root, output):
     levels=read(root/'pegelkarte.json') or read(root/'assets/data/water-levels.json')
     europe_levels=read(root/'europe-level.json') or read(root/'assets/data/europe-level.json')
     river_additions=read(root/'assets/data/river-sensor-additions.json')
+    # Mur (ARSO) und Donau unterhalb Oesterreichs (DHMZ, RHMZ, AFDJ, APPD):
+    # tools/fetch_extra_sensors.py bzw. fetch_extra_sensors.py im Sensordaten-Repository.
+    extra_sensors=read(root/'assets/data/extra-sensors.json')
     now=datetime.now(timezone.utc).timestamp()
     def recent(points):
         # Last real observation in each UTC six-hour bucket; never average
@@ -147,7 +150,7 @@ def build(root, output):
     # from the static packet.
     level_rows={str(s.get('id')):s for s in levels.get('stations',[])
                 if s.get('id') and numeric((s.get('current') or {}).get('v',(s.get('current') or {}).get('value')))!=-777}
-    for source in (europe_levels.get('stations',[]),river_additions.get('level_stations',[])):
+    for source in (europe_levels.get('stations',[]),river_additions.get('level_stations',[]),extra_sensors.get('level_stations',[])):
         for raw in source:
             station=dict(raw)
             if not station.get('id'):
@@ -173,7 +176,7 @@ def build(root, output):
             station['history']=history if isinstance(history,list) else []
             key=str(station['id'])
             level_rows[key]=merge_level(level_rows[key],station) if key in level_rows else station
-    level_updates=[value for value in (levels.get('fetched_at'),europe_levels.get('updated'),river_additions.get('updated')) if value]
+    level_updates=[value for value in (levels.get('fetched_at'),europe_levels.get('updated'),river_additions.get('updated'),extra_sensors.get('updated')) if value]
     newest_level_update=max(level_updates,key=stamp_of) if level_updates else levels.get('fetched_at')
     levels={**levels,'fetched_at':newest_level_update,'stations':list(level_rows.values())}
 
@@ -184,7 +187,7 @@ def build(root, output):
     # Dieselbe Station kann in beiden Laeufen stehen; die Laeufe starten zu
     # verschiedenen Minuten. Es gewinnt der juengere Messwert, nicht die
     # zuletzt gelesene Datei.
-    for station in europe.get('stations',[]):
+    for station in europe.get('stations',[])+extra_sensors.get('temperature_stations',[]):
         station=dict(station)
         if station.get('country')=='NL' and not station.get('river'):
             station['river']=nl_waters.get(station.get('name',''), '')
@@ -231,7 +234,7 @@ def build(root, output):
         return river in rivers or any(token in rivers for token in tokens) or 'bodensee' in river
     update_candidates=[(stamp_of(value),value) for value in
         (water.get('updated'),niz.get('updated'),brandenburg_snapshot.get('updated'),europe.get('updated'),
-         europe_levels.get('updated'),river_additions.get('updated')) if value]
+         europe_levels.get('updated'),river_additions.get('updated'),extra_sensors.get('updated')) if value]
     latest_update=max(update_candidates,default=(0,water.get('updated')),key=lambda item:item[0])[1]
     write(output/'temperature-map.json',{'data':{'stations':[s for s in temperatures if mapped(s)]},'archive':{**short_archive,'stations':[s for s in short_archive['stations'] if mapped(s)]},'updated':latest_update})
     def compact_time(value):
