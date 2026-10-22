@@ -21,7 +21,12 @@ INVENTORY_URL = API + 'stations.json?includeTimeseries=true&includeCharacteristi
 RIVERS = {'RHEIN': 'Rhein', 'ELBE': 'Elbe', 'DONAU': 'Donau', 'MAIN': 'Main',
           'MOSEL': 'Mosel', 'WESER': 'Weser', 'ODER': 'Oder',
           'NECKAR': 'Neckar', 'LEINE': 'Leine', 'ALLER': 'Aller', 'EMS': 'Ems',
-          'SPREE-ODER-WASSERSTRASSE': 'Spree'}
+          'SPREE-ODER-WASSERSTRASSE': 'Spree', 'SAALE': 'Saale',
+          # PEGELONLINE water shortnames (the public longnames are not stable
+          # identifiers). Exclude EHK: the Elbe-Havel Canal is not the Havel.
+          'SOW': 'Spree', 'MGS': 'Spree',
+          'HOW': 'Havel', 'HvK': 'Havel', 'MHW': 'Havel', 'OHW': 'Havel',
+          'OHV': 'Havel', 'PHv': 'Havel', 'UHW': 'Havel'}
 
 
 def fetch(url):
@@ -114,7 +119,7 @@ def convert(inventory, previous, now):
 def report(stations):
     po = [s for s in stations if s.get('source') == 'PEGELONLINE / WSV']
     by_river = {}
-    for river in RIVERS.values():
+    for river in sorted(set(RIVERS.values())):
         group = [s for s in po if s['river'] == river]
         by_river[river] = {'total': len(group), 'usable_references': sum(s['reference_issue'] is None for s in group)}
     return {'pegelonline_total': len(po), 'complete_references': sum(len(s['references']) == 3 for s in po),
@@ -126,7 +131,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('pegelkarte.json'))
     parser.add_argument('--inventory', type=Path, help='Use a previously downloaded official response')
-    parser.add_argument('--austria', type=Path, help='Optional local wasserwerte.json: gray Austrian gauges')
+    parser.add_argument('--austria', type=Path, help='Optional local wasserwerte.json: Austrian and ARSO gauges')
     parser.add_argument('--no-history', action='store_true')
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
@@ -160,14 +165,19 @@ def main():
         print(f'History: {len(selected) - len(failures)}/{len(selected)} retrieved')
     if args.austria and args.austria.exists():
         for s in json.loads(args.austria.read_text(encoding='utf8')).get('stations', []):
-            if not str(s.get('src', '')).startswith('at-'):
+            source = str(s.get('src', ''))
+            if not (source.startswith('at-') or source == 'arso-si'):
                 continue
             item = next((x for x in s.get('items', []) if x.get('label') == 'Pegelstand'), None)
             if item:
+                current = {'v': number(item.get('value')), 't': item.get('time')}
+                old = next((row for row in previous.get('stations', []) if row.get('id') == s['id']), {})
                 stations.append({'id': s['id'], 'name': s['name'], 'river': s['river'], 'lat': s.get('lat'), 'lon': s.get('lon'),
-                                 'source': s.get('src'), 'source_url': s.get('source_url', ''), 'unit': item.get('unit'),
-                                 'current': {'v': number(item.get('value')), 't': item.get('time')},
-                                 'references': {}, 'reference_issue': 'missing-references', 'history': []})
+                                 'source': source, 'source_url': s.get('source_url', ''),
+                                 'attribution': s.get('attribution', ''), 'license': s.get('license', ''),
+                                 'license_url': s.get('license_url', ''), 'unit': item.get('unit'),
+                                 'current': current, 'references': {}, 'reference_issue': 'missing-references',
+                                 'history': hourly(old.get('history', []) + [current], now.timestamp())})
     coverage_report = report(stations)
     regional_errors = supplement(stations, previous, now.timestamp(), hourly, references)
     regional = [s for s in stations if s['id'].startswith(('hnd-', 'hvz-'))]

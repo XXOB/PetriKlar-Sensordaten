@@ -37,6 +37,12 @@ jobs:
     # Fest auf 24.04: Seit der Umstellung von ubuntu-latest auf Ubuntu 26
     # (ab 19.10.2026) lehnen mehrere Behoerdenserver die Abrufe ab.
     runs-on: ubuntu-24.04
+    # Behoerdenserver, die GitHub-Server abweisen, werden ueber petriklar.com
+    # abgerufen (relay_client/petriklar_relay.py). Ohne Secret: direkter Abruf.
+    env:
+      PYTHONPATH: ${{ github.workspace }}/relay_client
+      PETRIKLAR_RELAY_URL: https://www.petriklar.com/relay/fetch.php
+      PETRIKLAR_RELAY_KEY: ${{ secrets.PETRIKLAR_RELAY_KEY }}
     timeout-minutes: 55
     steps:
       - name: Repository auschecken
@@ -142,6 +148,17 @@ jobs:
             test -s assets/data/extra-sensors.json || true
           }
 
+      # Drau/Mur (Kaernten, Steiermark), Maas/Mosel/Rhone (Hub'Eau) und Ticino
+      # (ARPA Lombardia). Lief frueher nur im Website-Repository.
+      - name: Mur-, Drau-, Maas-, Mosel-, Rhone- und Ticino-Pegel abrufen
+        if: always()
+        timeout-minutes: 8
+        run: |
+          python fetch_river_sensor_additions.py || {
+            echo "::warning::Zusatz-Pegel nicht vollstaendig aktualisiert; letzter Stand bleibt erhalten."
+            test -s assets/data/river-sensor-additions.json
+          }
+
       - name: Eigenes Pegelarchiv fuer Stationen ohne Kennwerte
         if: always()
         timeout-minutes: 8
@@ -153,7 +170,8 @@ jobs:
         run: |
           for file in wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json \
                       pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json \
-                      undine_coords.json berlin_coords.json assets/data/lfu-brandenburg-current.json assets/data/extra-sensors.json; do
+                      undine_coords.json berlin_coords.json assets/data/lfu-brandenburg-current.json assets/data/extra-sensors.json \
+                      assets/data/river-sensor-additions.json; do
             [ ! -f "$file" ] || git add "$file"
           done
           for land in AT CH NL; do

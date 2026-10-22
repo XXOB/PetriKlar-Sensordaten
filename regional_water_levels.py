@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from html import unescape
 import json
+import math
 import re
 from urllib.request import Request, urlopen
 
@@ -79,7 +80,7 @@ def parse_measurements(html):
 def bayern_inventory(html):
     result = []
     for row in rows(html):
-        if len(row) < 4 or text(row[1]) not in ('Donau', 'Main', 'Inn', 'Lech', 'Salzach', 'Isar'):
+        if len(row) < 4 or text(row[1]) not in ('Donau', 'Main', 'Inn', 'Lech', 'Salzach', 'Isar', 'Sächsische Saale'):
             continue
         link = re.search(r'href="(https://www\.hnd\.bayern\.de/pegel/[^\"]+)"', row[0])
         if link and not link[1].endswith('/abfluss'):
@@ -107,7 +108,8 @@ def bayern_station(name, url, river, old, now, hourly, validate):
     if not series:
         raise ValueError('No recent measured water levels')
     _, issue = validate({'unit': 'cm', 'characteristicValues': [dict(v, shortname=k) for k, v in refs.items()]})
-    return {'id': 'hnd-' + number, 'official_number': number, 'name': name, 'river': river,
+    mapped_river = 'Saale' if river == 'Sächsische Saale' else river
+    return {'id': 'hnd-' + number, 'official_number': number, 'name': name, 'river': mapped_river,
             'lat': float(point['lat']), 'lon': float(point['lon']), 'source': 'LfU Bayern / HND',
             'source_url': url, 'reference_source': 'LfU Bayern / GKD', 'reference_source_url': gkd + '/statistik',
             'unit': 'cm', 'references': refs, 'reference_issue': issue,
@@ -123,20 +125,24 @@ def hvz_stations(html, old, now, hourly):
             row = ast.literal_eval(line.strip().rstrip(','))
         except (ValueError, SyntaxError):
             continue
-        if len(row) < 57 or row[2] != 'Donau' or row[5] not in ('cm', ''):
+        if len(row) < 57 or row[2] not in ('Donau', 'Neckar') or row[5] not in ('cm', ''):
             continue
         key = 'hvz-' + row[0]
         try:
             current = {'t': german_time(row[6]), 'v': float(row[4])}
         except ValueError:
             current = {'t': None, 'v': None}
+        if current['t'] is None or not math.isfinite(current['v']):
+            continue
         series = hourly(old.get(key, {}).get('history', []) + [current], now)
+        if not series:
+            continue
         # Official WQ-derived water levels in cm; zero is a missing-value sentinel.
         refs = {k: {'value': float(row[i]), 'unit': 'cm', 'method': 'WQ-derived'}
                 for k, i in [('MW', 40), ('MNW', 43)]
                 if isinstance(row[i], (int, float)) and row[i] > 0}
         issue = None if len(refs) == 2 and refs['MNW']['value'] < refs['MW']['value'] else 'missing-references'
-        result.append({'id': key, 'name': row[1], 'river': 'Donau', 'lat': row[21], 'lon': row[20],
+        result.append({'id': key, 'name': row[1], 'river': row[2], 'lat': row[21], 'lon': row[20],
                        'source': 'LUBW / HVZ', 'source_url': HVZ + 'pegel.html?id=' + row[0],
                        'unit': 'cm', 'references': refs, 'reference_issue': issue,
                        'reference_source': 'LUBW / HVZ (WQ)', 'reference_source_url': HVZ + 'pegel.html?id=' + row[0],

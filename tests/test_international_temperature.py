@@ -1,5 +1,7 @@
 """Offline parser/collector tests. Never contact a production data endpoint."""
 import copy
+from contextlib import redirect_stdout
+from io import StringIO
 import json
 from pathlib import Path
 import sys
@@ -9,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import international_temperature_sources as feeds
+import temperature_sources as temps
 
 
 class InternationalTemperatureTests(unittest.TestCase):
@@ -17,7 +20,7 @@ class InternationalTemperatureTests(unittest.TestCase):
         self.station={'objID':'0-203-1-245000','DBC':'245000','STATION_NAME':'Hřensko - Labe',
                       'STREAM_NAME':'Labe','GEOGR1':50.871,'GEOGR2':14.231}
         self.cz={'objList':[{'objID':self.station['objID'],'tsList':[{'tsConID':'TH','unit':'0C','tsData':[{'dt':self.time,'value':18.8}]}]}]}
-        self.selection=feeds.RWS_STATIONS[0]
+        self.selection=feeds.RWS_STATIONS[1]
         self.nl={'Succesvol':True,'WaarnemingenLijst':[{
             'Locatie':{'Code':self.selection['Code'],'Naam':'Middelharnis, meetboei','Lat':51.776524,'Lon':4.192119,'Coordinatenstelsel':'ETRS89'},
             'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':'T'},'Eenheid':{'Code':'oC'},'ProcesType':'meting'},
@@ -53,13 +56,52 @@ class InternationalTemperatureTests(unittest.TestCase):
 
     def test_rws_surface_water_only_and_consistent_horizon(self):
         r=feeds.parse_rws(self.nl,self.selection)
-        self.assertEqual(r['country'],'NL');self.assertEqual(r['river'],'Rhein');self.assertEqual(r['items'][0]['value'],20.6)
+        self.assertEqual(r['country'],'NL');self.assertEqual(r['river'],'Rhein-Maas-Delta');self.assertEqual(r['items'][0]['value'],20.6)
         self.assertEqual(r['attribution'],'Rijkswaterstaat');self.assertIn('open-data',r['license_url'])
         measurement=self.nl['WaarnemingenLijst'][0]['MetingenLijst'][0]
         for key,value in [('Bemonsteringshoogte','-800'),('Referentievlak','NAP'),('Kwaliteitswaardecode','99')]:
             with self.subTest(key=key):
                 old=measurement['WaarnemingMetadata'][key];measurement['WaarnemingMetadata'][key]=value
                 self.assertIsNone(feeds.parse_rws(self.nl,self.selection));measurement['WaarnemingMetadata'][key]=old
+
+    def test_rws_ijssel_station_is_supported_but_historic_1965_sample_is_not_live(self):
+        selection=next(s for s in feeds.RWS_STATIONS if s['Code']=='kampen')
+        self.assertEqual(temps.RIVERS['ijssel'],'IJssel')
+        station={'Succesvol':True,'WaarnemingenLijst':[{
+            'Locatie':{'Code':'kampen','Naam':'Kampen','Lat':52.558966,'Lon':5.917924,'Coordinatenstelsel':'ETRS89'},
+            'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':'T'},'Eenheid':{'Code':'oC'},'ProcesType':'meting'},
+            'MetingenLijst':[{'Tijdstip':self.time,'Meetwaarde':{'Waarde_Numeriek':14.2},'WaarnemingMetadata':{
+                'Bemonsteringshoogte':'-100','Referentievlak':'WATSGL','Kwaliteitswaardecode':'00'}}]}]}
+        result=feeds.parse_rws(station,selection)
+        self.assertEqual(result['river'],'IJssel')
+        self.assertEqual(result['name'],'Kampen')
+        self.assertIn('Kampen',result['data_note'])
+        station['WaarnemingenLijst'][0]['MetingenLijst'][0]['Tijdstip']='1965-12-31T08:00:00.000+01:00'
+        self.assertIsNone(feeds.parse_rws(station,selection))
+
+    def test_bovenrijn_harbor_series_uses_its_own_horizon(self):
+        selection=next(s for s in feeds.RWS_STATIONS if s['Code']=='lobith.bovenrijn.haven')
+        payload={'Succesvol':True,'WaarnemingenLijst':[{
+            'Locatie':{'Code':selection['Code'],'Naam':'Lobith, Bovenrijn, haven','Lat':51.857505,'Lon':6.083651,'Coordinatenstelsel':'ETRS89'},
+            'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':'T'},'Eenheid':{'Code':'oC'},'ProcesType':'meting'},
+            'MetingenLijst':[{'Tijdstip':self.time,'Meetwaarde':{'Waarde_Numeriek':18.4},'WaarnemingMetadata':{
+                'Bemonsteringshoogte':'0','Referentievlak':'NVT','Kwaliteitswaardecode':'00'}}]}]}
+        result=feeds.parse_rws(payload,selection)
+        self.assertEqual(result['river'],'Rhein')
+        self.assertIn('0/NVT',result['data_note'])
+
+    def test_current_nederrijn_series_is_supported_as_its_own_river(self):
+        selection=next(s for s in feeds.RWS_STATIONS if s['Code']=='amerongen.boven')
+        self.assertEqual(temps.RIVERS['nederrijn'],'Nederrijn')
+        payload={'Succesvol':True,'WaarnemingenLijst':[{
+            'Locatie':{'Code':'amerongen.boven','Naam':'Amerongen, boven','Lat':51.9753,'Lon':5.4125,'Coordinatenstelsel':'ETRS89'},
+            'AquoMetadata':{'Compartiment':{'Code':'OW'},'Grootheid':{'Code':'T'},'Eenheid':{'Code':'oC'},'ProcesType':'meting'},
+            'MetingenLijst':[{'Tijdstip':self.time,'Meetwaarde':{'Waarde_Numeriek':16.0},'WaarnemingMetadata':{
+                'Bemonsteringshoogte':'0','Referentievlak':'NVT','Kwaliteitswaardecode':'00'}}]}]}
+        result=feeds.parse_rws(payload,selection)
+        self.assertEqual(result['river'],'Nederrijn')
+        self.assertEqual(result['items'][0]['value'],16.0)
+        self.assertIn('Amerongen',result['data_note'])
 
     def test_rws_does_not_use_air_temperature_forecast_wrong_units_or_coordinates(self):
         for key,value in [('Compartiment',{'Code':'LT'}),('Eenheid',{'Code':'K'}),('ProcesType','verwachting')]:
@@ -79,21 +121,62 @@ class InternationalTemperatureTests(unittest.TestCase):
             self.assertEqual(len(feeds.rijkswaterstaat()),2)
 
     def test_one_failed_chmi_station_does_not_discard_others(self):
-        with patch.object(feeds,'chmi_catalog',return_value=[self.station,self.station]),patch.object(feeds,'read_json',side_effect=[{},OSError('timeout'),self.cz]):
+        with redirect_stdout(StringIO()),patch.object(feeds,'chmi_catalog',return_value=[self.station,self.station]),patch.object(feeds,'read_json',side_effect=[{},OSError('timeout'),self.cz]):
             self.assertEqual(len(feeds.chmi()),1)
 
+    def test_imgw_oda_live_values_keep_polish_timezone_and_source_attribution(self):
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(second=0, microsecond=0)
+        current = now.strftime("%Y-%m-%d %H:%M:%S")
+        payload = [
+            {"id_stacji":"153140050", "stacja":"Szczecin", "rzeka":"Odra", "lat":"53.4225", "lon":"14.5597",
+             "temperatura_wody":"15.0", "temperatura_wody_data_pomiaru":current},
+            {"id_stacji":"stale", "stacja":"stale", "rzeka":"Odra", "lat":"52.0", "lon":"14.0",
+             "temperatura_wody":"8.4", "temperatura_wody_data_pomiaru":"2025-11-18 06:00:00"},
+            {"id_stacji":"blank", "stacja":"blank", "rzeka":"Odra", "lat":"52.0", "lon":"14.0",
+             "temperatura_wody":"", "temperatura_wody_data_pomiaru":""},
+            {"id_stacji":"tributary", "stacja":"tributary", "rzeka":"Nysa Kłodzka", "lat":"50.0", "lon":"17.0",
+             "temperatura_wody":"12.0", "temperatura_wody_data_pomiaru":current},
+        ]
+        with patch.object(temps, "fetch_json", return_value=payload):
+            rows = temps.imgw_odra()
+        self.assertEqual([r["id"] for r in rows], ["imgw-pl-odra-153140050"])
+        row = rows[0]
+        self.assertEqual(row["river"], "Oder")
+        self.assertEqual(row["country"], "PL")
+        self.assertEqual(row["items"][0]["value"], 15.0)
+        self.assertTrue(row["items"][0]["time"].endswith(("+01:00", "+02:00")))
+        self.assertIn("IMGW-PIB", row["attribution"])
+        self.assertIn("PetriKlar", row["data_note"])
+
+    def test_pegelonline_maps_only_actual_potsdamer_havel_not_havel_canal(self):
+        stations = [{
+            "longname":"POTSDAM", "uuid":"havel-station", "latitude":52.399887, "longitude":13.072071,
+            "water":{"longname":"POTSDAMER HAVEL"},
+            "timeseries":[{"shortname":"WT", "currentMeasurement":{"timestamp":self.time, "value":15.2}}],
+        }, {
+            "longname":"LEHNITZ UP", "uuid":"canal-station", "latitude":52.77, "longitude":13.28,
+            "water":{"longname":"HAVEL-ODER-WASSERSTRASSE"}, "timeseries":[],
+        }]
+        with patch.object(temps, "fetch_json", side_effect=[stations, []]):
+            rows = temps.pegelonline()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["river"], "Havel")
+        self.assertEqual(rows[0]["name"], "POTSDAM")
+        self.assertEqual(rows[0]["items"][0]["value"], 15.2)
+
     def test_one_failed_country_does_not_discard_other_country(self):
-        with patch.object(feeds,'chmi',side_effect=OSError('timeout')),patch.object(feeds,'rijkswaterstaat',return_value=[{'id':'nl'}]):
+        with redirect_stdout(StringIO()),patch.object(feeds,'chmi',side_effect=OSError('timeout')),patch.object(feeds,'rijkswaterstaat',return_value=[{'id':'nl'}]):
             self.assertEqual(feeds.collect(),[{'id':'nl'}])
 
     def test_rws_uses_new_service_and_sends_surface_water_and_selected_height(self):
         with patch.object(feeds,'read_json',return_value={}) as read:
             self.assertEqual(feeds.rijkswaterstaat(),[])
-        self.assertEqual(read.call_count,3)
-        for call in read.call_args_list:
+        self.assertEqual(read.call_count,len(feeds.RWS_STATIONS))
+        for selection,call in zip(feeds.RWS_STATIONS,read.call_args_list):
             url,body=call.args;self.assertIn('ddapi20-',url)
             meta=body['AquoPlusWaarnemingMetadata'];self.assertEqual(meta['AquoMetadata']['Compartiment']['Code'],'OW')
-            self.assertEqual(meta['WaarnemingMetadata']['BemonsteringshoogteLijst'],['-200'])
+            self.assertEqual(meta['WaarnemingMetadata']['BemonsteringshoogteLijst'],[selection['height']])
         self.assertNotIn('hoekvanholland',[s['Code'] for s in feeds.RWS_STATIONS])
 
 

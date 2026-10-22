@@ -10,13 +10,20 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
-RIVERS = {x.casefold(): x for x in ("Rhein", "Main", "Mosel", "Donau", "Weser", "Elbe", "Oder", "Inn", "Lech",
+RIVERS = {x.casefold(): x for x in ("Rhein", "Nederrijn", "Main", "Mosel", "Donau", "Weser", "Elbe", "Oder", "Inn", "Lech",
                                     "Neckar", "Isar", "Leine", "Aller", "Ems", "Saale",
-                                    "Salzach", "Enns", "Mur", "Drau", "Traun", "Bodensee", "Spree")}
+                                    "Salzach", "Enns", "Mur", "Drau", "Traun", "Bodensee", "Spree", "Havel",
+                                    "IJssel", "Rhein-Maas-Delta")}
 RIVERS["spree-oder-wasserstrasse"] = "Spree"
 RIVERS["spree-oder-wasserstraße"] = "Spree"
+RIVERS["odra"] = "Oder"
+# PEGELONLINE's water name for the actual river reach at Potsdam. Nearby
+# Havel-Oder and Elbe-Havel canals are deliberately not classified as Havel.
+RIVERS["potsdamer havel"] = "Havel"
 PO = "https://www.pegelonline.wsv.de/webservices/rest-api/v2/"
+IMGW_HYDRO = "https://danepubliczne.imgw.pl/api/data/hydro/format/json"
 NIZ = "https://inovum-services.de/gmb/md/v1/gewaesser;1.0.0?page%5Blimit%5D=1000"
 HLNUG = "https://app.hlnug.de/json/wasser/"
 
@@ -72,6 +79,42 @@ def row(sid, name, river, lat, lon, src, url, points):
     return {"id": sid, "name": name, "river": RIVERS[river.casefold()], "lat": lat, "lon": lon,
             "src": src, "source_url": url, "items": [{"label": "Wassertemperatur", "value": last["v"],
             "unit": "°C", "time": last["t"]}], "history": {"Wassertemperatur": points}}
+
+
+def imgw_temperature_time(value):
+    """IMGW's live hydrology feed timestamps are local Polish civil time."""
+    dt = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("Europe/Warsaw"))
+    return dt.isoformat(timespec="minutes")
+
+
+def imgw_odra():
+    """Current official IMGW-PIB Oder observations; ignore blank and stale values."""
+    result = []
+    for station in fetch_json(IMGW_HYDRO):
+        if str(station.get("rzeka", "")).strip().casefold() != "odra":
+            continue
+        try:
+            sid = str(station["id_stacji"]).strip()
+            raw_time = station.get("temperatura_wody_data_pomiaru")
+            raw_value = station.get("temperatura_wody")
+            if not raw_time or not str(raw_time).strip() or raw_value is None or not str(raw_value).strip():
+                continue
+            points = [{"t": imgw_temperature_time(raw_time), "v": raw_value}]
+            r = row("imgw-pl-odra-" + sid, station.get("stacja") or sid, "Odra",
+                    station.get("lat"), station.get("lon"), "imgw", IMGW_HYDRO, points)
+            if not r:
+                continue
+            r.update(country="PL", attribution=(
+                "Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej – "
+                "Państwowy Instytut Badawczy (IMGW-PIB)."),
+                data_note=("Dane operacyjne IMGW-PIB; czas pomiaru pochodzi ze źródła. "
+                           "Dane przetworzone przez PetriKlar."))
+            result.append(r)
+        except (KeyError, TypeError, ValueError) as ex:
+            print(f"[Temperatur/IMGW] {station.get('stacja', 'unbekannte Station')}: {ex}")
+    return result
 
 
 def pegelonline():
@@ -150,7 +193,10 @@ def collect(previous=()):
     for r in previous:
         if r.get("id"):
             results[r["id"]] = r
-    for name, adapter in (("PEGELONLINE", pegelonline), ("LUBW NIZ", niz), ("HLNUG", hlnug), ("Nachbarländer", international)):
+    for name, adapter in (("PEGELONLINE", pegelonline), ("IMGW-PIB Oder", imgw_odra),
+                          ("LUBW NIZ", niz), ("HLNUG", hlnug), ("Nachbarländer", international)):
+        # Im Messwerte-Lauf holt der NL-Schritt Rijkswaterstaat selbst
+        # (europe_sources.py); der deutsche Schritt nimmt nur Tschechien mit.
         if name == 'Nachbarländer' and __import__('os').environ.get('PETRIKLAR_COUNTRY') == 'DE':
             from international_temperature_sources import chmi
             adapter = chmi

@@ -18,10 +18,27 @@ CHMI_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
 # The drawn Rhine/Waal route ends in Haringvliet, NOT at Hoek van Holland on
 # another delta arm. Verified upper sampling horizon at each actual route site;
 # never average the independently reported deeper horizons.
+# The only configured RWS series we have verified on the IJssel itself is
+# Zwolle; its last usable observation is historical, so row() rejects it. The
+# live Amerongen sensor is on the Nederrijn, a Rhine distributary with its own
+# mapped route. Do not mislabel a nearby canal sensor as an IJssel reading.
 RWS_STATIONS = (
-    {"Code": "middelharnis.meetboei", "height": "-200", "reference": "WATSGL"},
-    {"Code": "haringvliet.2", "height": "-200", "reference": "WATSGL"},
-    {"Code": "stellendam.binnen", "height": "-200", "reference": "WATSGL"},
+    # Lobith is the upstream Dutch RWS station on the Bovenrijn/Rhine route.
+    {"Code": "lobith.ponton", "river": "Rhein", "height": "-100", "reference": "WATSGL"},
+    # These sites are in the downstream Rhine-Maas delta, not on the IJssel.
+    {"Code": "middelharnis.meetboei", "river": "Rhein-Maas-Delta", "height": "-200", "reference": "WATSGL"},
+    {"Code": "haringvliet.2", "river": "Rhein-Maas-Delta", "height": "-200", "reference": "WATSGL"},
+    {"Code": "stellendam.binnen", "river": "Rhein-Maas-Delta", "height": "-200", "reference": "WATSGL"},
+    # This Bovenrijn product is distinct from the ponton sensor and uses its
+    # own documented sampling horizon/reference plane.
+    {"Code": "lobith.bovenrijn.haven", "river": "Rhein", "height": "0", "reference": "NVT"},
+    {"Code": "zwolle.ijssel", "river": "IJssel", "height": "-100", "reference": "WATSGL"},
+    # Kampen is an official IJssel temperature site, but currently only returns
+    # sparse observations. Keep polling so the first new valid reading is used.
+    {"Code": "kampen", "river": "IJssel", "height": "-100", "reference": "WATSGL"},
+    # Current Dutch Rhine-branch temperature is available at Amerongen, not
+    # at the stale Lobith ponton series. Keep its physical river name/route.
+    {"Code": "amerongen.boven", "river": "Nederrijn", "height": "0", "reference": "NVT"},
 )
 
 
@@ -101,12 +118,32 @@ def parse_rws(payload, selection):
                 continue
             points.append({"t": measurement.get("Tijdstip"),
                            "v": measurement.get("Meetwaarde", {}).get("Waarde_Numeriek")})
-        result = row("rws-" + location["Code"], location["Naam"], "Rhein", location["Lat"], location["Lon"],
+        result = row("rws-" + location["Code"], location["Naam"], selection.get("river", "Rhein"), location["Lat"], location["Lon"],
             "rijkswaterstaat", "https://waterinfo.rws.nl/#/publiek/watertemperatuur", points)
         if result:
             result.update(country="NL", attribution="Rijkswaterstaat",
-                license_url="https://www.rijkswaterstaat.nl/zakelijk/open-data",
-                data_note="Rhein-Maas-Delta, Haringvliet: oberer Messhorizont (RWS-Code −200/WATSGL). Operative 10-Minuten-Mittel, Qualitätscode 00; noch nicht abschließend geprüft. Keine Mischung verschiedener Messhöhen.")
+                license="CC0-1.0", license_url="https://www.rijkswaterstaat.nl/zakelijk/open-data",
+                source_station=location["Code"], sampling_height=selection["height"],
+                sampling_reference=selection["reference"],
+                data_note=(
+                    "Bovenrijn/Rhein bei Lobith; Messhorizont −100/WATSGL. "
+                    "Operativer Rijkswaterstaat-Wert, Qualitätscode 00; noch nicht abschließend geprüft."
+                    if location["Code"] == "lobith.ponton" else
+                    "Bovenrijn/Rhein bei Lobith, Hafenmessstelle; Messhorizont 0/NVT. "
+                    "Operativer Rijkswaterstaat-Wert, Qualitätscode 00; noch nicht abschließend geprüft."
+                    if location["Code"] == "lobith.bovenrijn.haven" else
+                    "IJssel bei Zwolle; Messhorizont −100/WATSGL. "
+                    "Operativer Rijkswaterstaat-Wert, Qualitätscode 00; noch nicht abschließend geprüft."
+                    if location["Code"] == "zwolle.ijssel" else
+                    "IJssel bei Kampen; Messhorizont −100/WATSGL. "
+                    "Operativer Rijkswaterstaat-Wert, Qualitätscode 00; noch nicht abschließend geprüft."
+                    if location["Code"] == "kampen" else
+                    "Nederrijn bei Amerongen; Messhorizont 0/NVT. "
+                    "Operativer Rijkswaterstaat-Wert, Qualitätscode 00; noch nicht abschließend geprüft."
+                    if location["Code"] == "amerongen.boven" else
+                    "Rijkswaterstaat-Messwert im Rhein-Maas-Delta; Messhorizont −200/WATSGL. "
+                    "Operative Messung, Qualitätscode 00; noch nicht abschließend geprüft. "
+                    "Keine Mischung verschiedener Messhöhen."))
             candidates.append(result)
     # Do not average independent products. Prefer the freshest continuous series.
     return max(candidates, key=lambda r: (r["items"][0]["time"], len(r["history"]["Wassertemperatur"])), default=None)
@@ -125,6 +162,8 @@ def rijkswaterstaat():
             result = parse_rws(read_json(RWS, body), selection)
             if result:
                 results.append(result)
+            else:
+                print(f"[Temperatur/RWS] {selection['Code']}: kein brauchbarer Messwert innerhalb der letzten 8 Tage")
         except Exception as ex:
             print(f"[Temperatur/RWS] {selection['Code']}: {ex}")
     return results

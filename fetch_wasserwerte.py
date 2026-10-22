@@ -447,6 +447,8 @@ def process_hessen(st):
         print(f"      {it['label']}: {it['value']} {it['unit']}  (Stand {it['time']})")
     return {
         "id": st["url"], "name": st["name"], "lat": st["lat"], "lon": st["lon"], "river": st["river"],
+        "src": "rlp-gus",
+        "source_url": "https://geodaten-wasser.rlp-umwelt.de/gus/" + str(st["id"]),
         "updated": datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M"),
         "items": items, "history": history,
     }
@@ -865,7 +867,7 @@ SAXONY_STATIONS = [
     ("Bad Düben","Vereinigte Mulde",51.5900,12.5860,"https://www.wasser.sachsen.de/messstation-bad-dueben-vereinigte-mulde-links-fluss-km-67-18333.html"),
     ("Görlitz","Lausitzer Neiße",51.1520,14.9930,"https://www.wasser.sachsen.de/goerlitz-18253.html"),
 ]
-SAXONY_MAX_AGE_H = 72  # alte validierte Zahlen nicht als aktuelle Messung anbieten
+SAXONY_MAX_AGE_H=72
 
 def xlsx_rows(raw):
     """Kleine XLSX-Leseroutine ohne externe Python-Pakete."""
@@ -932,9 +934,6 @@ def process_sachsen():
                           "time":dt.strftime("%d.%m.%Y %H:%M"),
                           **({"chart_url":chart_url} if kind=="wt" and chart_url else {})})
         if chart_url and not any(item['label']=='Wassertemperatur' for item in items):
-            # Die amtliche Grafik zeigt auch noch nicht validierte Messungen.
-            # Ihr Endwert ist kein maschinenlesbarer Zahlenwert; deshalb nur
-            # die Grafik verlinken, keine Temperatur aus Pixeln schaetzen.
             last_validated=latest.get('wt')
             items.append({"label":"Wassertemperatur","value":None,"unit":"°C","icon":"",
                           "time":last_validated[0].strftime("%d.%m.%Y %H:%M") if last_validated else "",
@@ -1212,7 +1211,7 @@ def process_nrw():
         name  = (o.get("station_name") or o.get("station_longname") or "").strip()
         sid   = str(o.get("station_no") or o.get("station_id") or name)
         results.append({
-            "id": "nrw-"+sid, "name": name or sid, "lat": round(lat,5), "lon": round(lon,5), "river": river,
+            "id": "nrw-"+sid, "src": "lanuv-nrw", "name": name or sid, "lat": round(lat,5), "lon": round(lon,5), "river": river,
             "updated": datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M"),
             "items": [{"label":"Wassertemperatur", "value":fmt_value(val,1), "unit":"°C",
                        "icon":"", "time": dt.strftime("%d.%m.%Y %H:%M") if dt else ""}],
@@ -1515,12 +1514,69 @@ RWS_LATEST_CSV=("https://geo.rijkswaterstaat.nl/services/ogc/hws/DDAPI20/ows?"
                 "TYPENAME=locatiesmetlaatstewaarneming&outputFormat=csv&"
                 "format_options=csvseparator:semicolon")
 RWS_FILTER_TERMS=("Temperatuur","Zuurstof","Troebel","Waterhoogte","Waterstand","Debiet","Afvoer")
+RWS_RIVER_BY_CODE={
+    # These locations are on the named main channels; do not infer a river
+    # from mere proximity (e.g. Eefde is on the Twentekanaal, not the IJssel).
+    "lobith.ponton":"Rhein",
+    "lobith.bovenrijn.haven":"Rhein",
+    "zwolle.ijssel":"IJssel",
+    "amerongen.boven":"Nederrijn",
+}
 
 def _pick(row, *names):
     low={str(k).lower():v for k,v in row.items()}
     for n in names:
         if n.lower() in low and low[n.lower()] not in (None,""): return low[n.lower()]
     return ""
+
+def rws_wfs_coordinates(lat_value, lon_value, geom):
+    """Parse Netherlands WFS coordinates, whose EPSG:4326 WKT uses lat/lon axes."""
+    lat,lon=lat_value,lon_value
+    if (not lat or not lon) and geom:
+        match=re.search(r"POINT\s*\(\s*([-0-9.]+)\s+([-0-9.]+)",str(geom),re.I)
+        if match:
+            first,second=map(float,match.groups())
+            if 49.0<=first<=56.5 and 2.0<=second<=8.5:
+                lat,lon=first,second
+            elif 49.0<=second<=56.5 and 2.0<=first<=8.5:
+                lon,lat=first,second
+            else:
+                return None
+    try:
+        lat=float(str(lat).replace(",","."));lon=float(str(lon).replace(",","."))
+    except (TypeError,ValueError):
+        return None
+    if not (49.0<=lat<=56.5 and 2.0<=lon<=8.5):
+        return None
+    return lat,lon
+
+def rws_wfs_timestamp(value, now=None):
+    """Normalize the WFS' current Dutch wall-clock timestamps.
+
+    The WFS sometimes labels its local wall time with ``Z``. When that makes a
+    just-returned last observation appear to be in the future, reinterpret only
+    that anomalous timestamp in Europe/Amsterdam. Otherwise keep its declared
+    timezone unchanged; this avoids converting valid UTC or historical rows.
+    """
+    raw=str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed=datetime.fromisoformat(raw.replace("Z","+00:00"))
+    except ValueError:
+        return raw
+    if raw.endswith(("Z","z")) and parsed.tzinfo is not None:
+        current=now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current=current.replace(tzinfo=timezone.utc)
+        if parsed.astimezone(timezone.utc)>current.astimezone(timezone.utc)+timedelta(minutes=15):
+            try:
+                local=datetime.fromisoformat(raw[:-1]).replace(tzinfo=ZoneInfo("Europe/Amsterdam"))
+                if local.astimezone(timezone.utc)<=current.astimezone(timezone.utc)+timedelta(minutes=15):
+                    return local.isoformat(timespec="minutes")
+            except ValueError:
+                pass
+    return parsed.isoformat(timespec="minutes")
 
 def process_netherlands_rws():
     """Alle letzten relevanten RWS-Beobachtungen, inklusive Nordsee/Wattenmeer."""
@@ -1551,23 +1607,29 @@ def process_netherlands_rws():
         if not param: continue
         code=str(_pick(row,"locatie_code","LOCATIE_CODE","code","locatie") or "").strip()
         if not code: continue
-        # DDAPI20 liefert ETRS89 lat/lon; Feldnamen können je WFS-Version variieren.
+        # DDAPI20 liefert ETRS89. Im WFS-WKT steht EPSG:4326 jedoch in
+        # lat/lon-Achsenreihenfolge (POINT (52.16 6.23)), nicht lon/lat.
         lat=_pick(row,"latitude","lat","y"); lon=_pick(row,"longitude","lon","lng","x")
         geom=str(_pick(row,"wkt","geom","geometry","the_geom") or "")
-        if (not lat or not lon) and geom:
-            m=re.search(r"POINT\s*\(\s*([-0-9.]+)\s+([-0-9.]+)",geom,re.I)
-            if m: lon,lat=m.group(1),m.group(2)
-        try: lat=float(str(lat).replace(",",".")); lon=float(str(lon).replace(",","."))
-        except Exception: continue
-        if not (49.0<=lat<=56.5 and 2.0<=lon<=8.5): continue
+        coords=rws_wfs_coordinates(lat,lon,geom)
+        if not coords: continue
+        lat,lon=coords
         value=_pick(row,"meetwaarde_waarde_numeriek","meetwaarde","waarde_numeriek","waarde")
         try: value=float(str(value).replace(",","."))
         except Exception: continue
-        t=str(_pick(row,"tijdstip","waarnemingdatum","begindatumtijd","datumtijd","timestamp") or "")
+        t=rws_wfs_timestamp(_pick(row,"tijdstip","waarnemingdatum","begindatumtijd","datumtijd","timestamp"))
+        if not t: continue
         name=str(_pick(row,"locatie_omschrijving","naam","locatienaam") or code)
         water=str(_pick(row,"waterlichaam_omschrijving","waternaam","waterlichaam","compartiment_omschrijving") or "Niederlande")
-        g=grouped.setdefault(code,{"id":"nl-rws-"+code,"name":name,"lat":lat,"lon":lon,"river":water,
-            "updated":now_text(),"src":"nl-rws","source_url":"https://waterinfo.rws.nl/","params":{"pegel":False,"wt":False,"o2":False,"tr":False},"items":{},"history":{}})
+        river=RWS_RIVER_BY_CODE.get(code.casefold(),water)
+        height=str(_pick(row,"bemonsteringshoogte","BEMONSTERINGSHOOGTE") or "")
+        reference=str(_pick(row,"referentievlak","REFERENTIEVLAK") or "")
+        g=grouped.setdefault(code,{"id":"nl-rws-"+code,"name":name,"lat":lat,"lon":lon,"river":river,
+            "updated":now_text(),"src":"rijkswaterstaat","country":"NL","attribution":"Rijkswaterstaat",
+            "license":"CC0-1.0","license_url":"https://www.rijkswaterstaat.nl/zakelijk/open-data",
+            "source_station":code,"sampling_height":height,"sampling_reference":reference,
+            "source_url":"https://waterinfo.rws.nl/#/publiek/watertemperatuur",
+            "params":{"pegel":False,"wt":False,"o2":False,"tr":False},"items":{},"history":{}})
         old=g["items"].get(param)
         if not old or t>=old.get("time",""):
             g["params"][param]=True
@@ -1646,8 +1708,8 @@ def temperature_archive_river(value):
     # Exact waterbody identity; never archive Altrhein or Werra as Rhine/Weser.
     names={x.lower():x for x in ("Rhein","Donau","Mosel","Elbe","Main","Oder","Weser","Inn","Lech","Bodensee",
                                  "Saale","Sächsische Saale","Neckar","Isar","Leine","Aller","Ems",
-                                 "Salzach","Enns","Mur","Drau","Traun")}
-    names.update({"rhine":"Rhein","hochrhein":"Rhein","oberrhein":"Rhein","mittelrhein":"Rhein","niederrhein":"Rhein","danube":"Donau","moselle":"Mosel"})
+                                 "Salzach","Enns","Mur","Drau","Traun","IJssel")}
+    names.update({"rhine":"Rhein","hochrhein":"Rhein","oberrhein":"Rhein","mittelrhein":"Rhein","niederrhein":"Rhein","rhein-maas-delta":"Rhein","nederrijn":"Rhein","danube":"Donau","moselle":"Mosel"})
     return names.get(normalized_header(value).strip())
 
 
@@ -1719,7 +1781,6 @@ def write_json(stations, temperature_supplement=()):
     }
     JSON_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-
 # Seit dem 21.10.2026 lehnen mehrere Behoerdenserver (u. a. GKD Bayern,
 # Wasserportal Berlin, LfU Brandenburg, BfG Undine) Anfragen von GitHub-Servern
 # zeitweise ab. Faellt eine Quelle in einem Lauf aus, verschwanden ihre
@@ -1727,7 +1788,7 @@ def write_json(stations, temperature_supplement=()):
 # (Isar, Spree, Havel ...) von den Karten. Jetzt bleiben die zuletzt
 # gelesenen Werte einer ausgefallenen Quelle mit ihrem echten Zeitstempel
 # erhalten, hoechstens 48 Stunden; die Karten blenden zu alte Werte selbst aus.
-GERMAN_SOURCES_TO_RETAIN=("gkd","berlin","undine","brandenburg","sachsen","nlwkn","lanuv-nrw","saarland-live","hlnug","bsh-marnet")
+GERMAN_SOURCES_TO_RETAIN=("gkd","berlin","undine","brandenburg","sachsen","nlwkn","lanuv-nrw","saarland-live","hlnug","bsh-marnet","rlp-gus")
 RETAIN_FAILED_SOURCE_H=48
 
 def retain_failed_german_sources(stations):
@@ -1759,7 +1820,7 @@ def retain_cached_neighbor_networks(stations):
         old_rows=old.get("stations",[]) if isinstance(old,dict) else []
     except Exception:
         return stations
-    prefixes=("ch-bafu-","nl-rws-","at-")
+    prefixes=("ch-bafu-","nl-rws-","at-","arso-si-")
     # Seit dem 12.09. holen die Laender-Schritte des Messwerte-Laufs diese Netze
     # und legen sie unter countries/<Land>/current ab. Der deutsche Lauf ruft
     # sie nicht mehr selbst ab. Ohne diesen Abgleich wuerde der Cache die
@@ -1808,6 +1869,46 @@ def process_station(st):
         "updated": datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M"),
         "items": items, "history": history,
     }
+
+# Quellen, die schon einmal geliefert haben. Faellt eine davon aus, ist das ein
+# Befund und keine Randnotiz: die Werte veralten dann still vor sich hin.
+# PEGELONLINE laeuft ueber refresh_discovery_pegel.py, BSH/MARNET liefert
+# bewusst nur Stammdaten - beide gehoeren hier nicht hinein.
+ERWARTETE_QUELLEN = ("gkd", "undine", "nlwkn", "lanuv-nrw", "berlin", "sachsen",
+                     "brandenburg", "saarland-live", "rlp-gus",
+                     "ch-bafu", "nl-rws", "at-bmluk", "at-noe", "at-ooe", "at-ktn", "at-sbg", "arso-si")
+
+
+def nur_deutschland():
+    """Messwerte-Lauf: AT, CH und NL kommen aus eigenen Laender-Schritten."""
+    return __import__('os').environ.get('PETRIKLAR_COUNTRY') == 'DE'
+
+
+def bilanz_ausgeben(stationen):
+    """Je Quelle zaehlen, was angekommen ist - und leere Quellen melden."""
+    gezaehlt = {}
+    for station in stationen:
+        kennung = station.get("src") or "(ohne Kennung)"
+        mit_wert = any(i.get("value") not in (None, "") for i in station.get("items") or [])
+        treffer = gezaehlt.setdefault(kennung, [0, 0])
+        treffer[0] += 1
+        treffer[1] += 1 if mit_wert else 0
+    print("\n--- Bilanz je Quelle ---")
+    for kennung in sorted(gezaehlt):
+        anzahl, mit_wert = gezaehlt[kennung]
+        print("  %-14s %5d Stationen, davon %5d mit Messwert" % (kennung, anzahl, mit_wert))
+    erwartet = [q for q in ERWARTETE_QUELLEN
+                if not (nur_deutschland() and q.startswith(("ch-", "nl-", "at-")))]
+    leer = [q for q in erwartet if gezaehlt.get(q, [0, 0])[1] == 0]
+    if leer:
+        text = ", ".join(leer)
+        print("::warning title=Quellen ohne Messwerte::" + text)
+        print("  ACHTUNG: keine Messwerte von " + text)
+        print("  Diese Stationen altern still. Bitte die Fehlermeldungen oben pruefen.")
+    else:
+        print("  Alle erwarteten Quellen haben geliefert.")
+
+
 
 def main():
     results = []
@@ -1868,7 +1969,9 @@ def main():
         results.extend(process_marnet_metadata())
     except Exception as e:
         print(f"      FEHLER BSH/MARNET: {e}")
-    if __import__('os').environ.get('PETRIKLAR_COUNTRY') != 'DE':
+    # Im Messwerte-Lauf (PETRIKLAR_COUNTRY=DE) holen eigene Schritte die
+    # Schweiz, die Niederlande und Oesterreich; hier nur ohne diesen Schalter.
+    if not nur_deutschland():
         try:                                   # Schweiz: offizielle offene BAFU-GraphQL-API
             results.extend(process_switzerland_bafu())
         except Exception as e:
@@ -1882,11 +1985,17 @@ def main():
             results.extend(process_austria_sources())
         except Exception as e:
             print(f"      FEHLER Österreich gesamt: {e}")
+    try:                                   # Slowenien: offizielle automatische Pegel mit Mur-Temperatur
+        from slovenia_sources import process_mura_current
+        results.extend(process_mura_current())
+    except Exception as e:
+        print(f"      FEHLER Slowenien/ARSO: {e}")
     if not results:
         print("Keine Station erfolgreich abgerufen.")
         sys.exit(2)
     results=retain_cached_neighbor_networks(results)
     results=retain_failed_german_sources(results)
+    bilanz_ausgeben(results)
     print(f"Schreibe wasserwerte.json ({len(results)} Station(en)) ...")
     # Same supplemental temperature feeds as the app; separate public file.
     from temperature_sources import collect
