@@ -36,7 +36,14 @@ const RELAY_HOSTS = [
     'www.wasser.sachsen.de', 'www.gewaessergueteonline.nlwkn.niedersachsen.de',
     'www.pegelonline.wsv.de', 'niz.baden-wuerttemberg.de', 'www.hvz.baden-wuerttemberg.de',
     'geodaten-wasser.rlp-umwelt.de', 'www2.bsh.de',
-    // Donau/Mur ausserhalb DE/AT
+    'inovum-services.de', 'www.gewaesser-monitoring.de',
+    // Schweiz und Niederlande
+    'www.hydrodaten.admin.ch', 'data.bafu.admin.ch', 'lindas.admin.ch', 'ld.admin.ch',
+    'environment.ld.admin.ch',
+    'ddapi20-waterwebservices.rijkswaterstaat.nl', 'geo.rijkswaterstaat.nl',
+    'rijkswaterstaatdata.nl', 'waterinfo.rws.nl',
+    // Nachbarlaender, Mur und Donau ausserhalb DE/AT
+    'opendata.chmi.cz', 'danepubliczne.imgw.pl', 'hubeau.eaufrance.fr', 'www.dati.lombardia.it',
     'afdj.ro', 'www.hidmet.gov.rs', 'hidro.dhz.hr', 'appd-bg.org',
     'www.arso.gov.si', 'vode.arso.gov.si',
 ];

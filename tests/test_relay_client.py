@@ -1,4 +1,6 @@
+import contextlib
 import http.server
+import io
 import os
 import sys
 import threading
@@ -33,26 +35,48 @@ class FakeRelay(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b"Kein Zugriff.")
 
 
+class Upstream(http.server.BaseHTTPRequestHandler):
+    """Behoerdenserver: /gesperrt antwortet 403, /offen liefert direkt."""
+    hits = []
+
+    def log_message(self, *args):
+        pass
+
+    def do_GET(self):
+        Upstream.hits.append(self.path)
+        self.send_response(403 if self.path.startswith("/gesperrt") else 200)
+        self.end_headers()
+        self.wfile.write(b"direkt")
+
+
 class RelayClientTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = http.server.HTTPServer(("127.0.0.1", 0), FakeRelay)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.upstream = http.server.HTTPServer(("127.0.0.1", 0), Upstream)
+        threading.Thread(target=cls.upstream.serve_forever, daemon=True).start()
+        # Ueber "localhost" angesprochen, damit es nicht mit dem Relay (127.0.0.1) kollidiert.
+        cls.direct = f"http://localhost:{cls.upstream.server_port}"
+        petriklar_relay.FALLBACK_HOSTS = petriklar_relay.FALLBACK_HOSTS | {"localhost"}
         os.environ["PETRIKLAR_RELAY_URL"] = f"http://127.0.0.1:{cls.server.server_port}/relay/fetch.php"
         os.environ["PETRIKLAR_RELAY_KEY"] = "testschluessel"
         os.environ["PETRIKLAR_RELAY_EXTRA_HOSTS"] = "gesperrt.invalid"
-        os.environ["NO_PROXY"] = os.environ["no_proxy"] = "127.0.0.1"
+        os.environ["NO_PROXY"] = os.environ["no_proxy"] = "127.0.0.1,localhost"
         assert petriklar_relay.install()
 
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.upstream.shutdown()
         for name in ("PETRIKLAR_RELAY_URL", "PETRIKLAR_RELAY_KEY", "PETRIKLAR_RELAY_EXTRA_HOSTS"):
             os.environ.pop(name, None)
 
     def setUp(self):
         FakeRelay.mode = "ok"
         FakeRelay.seen = []
+        Upstream.hits = []
+        petriklar_relay._newly_blocked.clear()
 
     def test_blocked_host_goes_through_relay_with_key_and_headers(self):
         req = urllib.request.Request("http://gesperrt.invalid/daten.csv?a=1&b=2", headers={"User-Agent": "PetriKlar-Test"})
@@ -75,6 +99,38 @@ class RelayClientTest(unittest.TestCase):
             resp.read()
         self.assertEqual(FakeRelay.seen[0][0], "/relay/fetch.php?direkt=1")
 
+    def test_fallback_host_is_fetched_directly_while_it_answers(self):
+        with urllib.request.urlopen(self.direct + "/offen", timeout=10) as resp:
+            self.assertEqual(resp.read(), b"direkt")
+        self.assertEqual(FakeRelay.seen, [])
+
+    def test_new_block_heals_itself_and_sticks_for_the_run(self):
+        with urllib.request.urlopen(self.direct + "/gesperrt/a.json", timeout=10) as resp:
+            self.assertEqual(resp.read(), b"via relay")
+        self.assertIn("localhost", petriklar_relay._newly_blocked)
+        # Danach gleich ueber den Umweg, ohne erneuten direkten Versuch.
+        with urllib.request.urlopen(self.direct + "/offen", timeout=10) as resp:
+            self.assertEqual(resp.read(), b"via relay")
+        self.assertEqual(Upstream.hits, ["/gesperrt/a.json"])
+        self.assertEqual(len(FakeRelay.seen), 2)
+
+    def test_refused_connection_also_heals(self):
+        # Port 9 (discard) ist lokal geschlossen: wie "Connection refused" in Oberoesterreich.
+        with urllib.request.urlopen("http://localhost:9/daten.csv", timeout=5) as resp:
+            self.assertEqual(resp.read(), b"via relay")
+        self.assertIn("localhost", petriklar_relay._newly_blocked)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            petriklar_relay._report()
+        self.assertIn("::warning title=Behoerde sperrt GitHub::localhost", buffer.getvalue())
+
+    def test_block_stays_visible_when_relay_fails_too(self):
+        FakeRelay.mode = "error"
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(self.direct + "/gesperrt/b.json", timeout=10)
+        self.assertEqual(caught.exception.code, 403)
+        self.assertEqual(petriklar_relay._newly_blocked, {})
+
     def test_known_blocked_authorities_are_listed(self):
         for host in ("data.ooe.gv.at", "hydro.tirol.gv.at", "www.gkd.bayern.de", "wasserportal.berlin.de",
                      "undine.bafg.de", "afdj.ro", "egov.stmk.gv.at", "info.ktn.gv.at"):
@@ -85,8 +141,9 @@ class RelayClientTest(unittest.TestCase):
         if not php.exists():
             self.skipTest("fetch.php liegt nur im Website-Repository")
         text = php.read_text(encoding="utf-8")
-        for host in petriklar_relay.RELAY_HOSTS:
-            self.assertIn("'" + host + "'", text)
+        for host in petriklar_relay.RELAY_HOSTS | petriklar_relay.FALLBACK_HOSTS:
+            if host != "localhost":
+                self.assertIn("'" + host + "'", text)
 
 
 if __name__ == "__main__":

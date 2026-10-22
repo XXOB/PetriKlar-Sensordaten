@@ -38,11 +38,37 @@ RELAY_HOSTS = frozenset({
     # Donau unterhalb Oesterreichs
     "afdj.ro",
 })
+# Alle uebrigen amtlichen Quellen: zuerst direkt. Lehnt der Server ab (keine
+# Verbindung, Zeitueberschreitung, HTTP 403/429/451/5xx), wird derselbe Abruf
+# ueber petriklar.com wiederholt - und fuer den Rest des Laufs gleich dort.
+# Eine neue Sperre heilt sich so selbst und erscheint als Warnung im Lauf.
+# relay/fetch.php muss jeden dieser Hosts ebenfalls erlauben (Test).
+FALLBACK_HOSTS = frozenset({
+    # Oesterreich
+    "www.salzburg.gv.at", "vowis.vorarlberg.at", "ehyd.gv.at", "gis.lfrz.gv.at",
+    # Deutschland
+    "www.hlnug.de", "app.hlnug.de", "www.wasser.sachsen.de",
+    "www.gewaessergueteonline.nlwkn.niedersachsen.de", "www.pegelonline.wsv.de",
+    "niz.baden-wuerttemberg.de", "www.hvz.baden-wuerttemberg.de", "inovum-services.de",
+    "geodaten-wasser.rlp-umwelt.de", "www2.bsh.de", "www.gewaesser-monitoring.de",
+    # Schweiz
+    "www.hydrodaten.admin.ch", "data.bafu.admin.ch", "lindas.admin.ch",
+    "ld.admin.ch", "environment.ld.admin.ch",
+    # Niederlande
+    "ddapi20-waterwebservices.rijkswaterstaat.nl", "geo.rijkswaterstaat.nl",
+    "rijkswaterstaatdata.nl", "waterinfo.rws.nl",
+    # Nachbarlaender, Mur und Donau
+    "opendata.chmi.cz", "danepubliczne.imgw.pl", "hubeau.eaufrance.fr", "www.dati.lombardia.it",
+    "www.hidmet.gov.rs", "hidro.dhz.hr", "appd-bg.org", "www.arso.gov.si", "vode.arso.gov.si",
+})
+BLOCK_STATUS = frozenset({403, 429, 451, 500, 502, 503, 504})
 # Weitere Hosts, die das PHP-Skript ebenfalls erlaubt, lassen sich ohne
 # Codeaenderung zuschalten: PETRIKLAR_RELAY_EXTRA_HOSTS="a.example b.example"
 
 _SKIP_HEADERS = {"host", "connection", "content-length", "accept-encoding", "x-petriklar-key"}
 _stats: dict[str, list[int]] = {}
+# Hosts, die in diesem Lauf direkt abgelehnt haben und ueber den Umweg liefen.
+_newly_blocked: dict[str, str] = {}
 _installed = False
 _original: dict[str, object] = {}
 
@@ -76,10 +102,36 @@ def _count(host: str, index: int) -> None:
 
 
 def _report() -> None:
+    for host, reason in sorted(_newly_blocked.items()):
+        # stdout: GitHub zeigt die Zeile als gelbe Warnung im Lauf an.
+        print(f"::warning title=Behoerde sperrt GitHub::{host} lehnt direkte Abrufe ab ({reason}); "
+              "ueber petriklar.com abgerufen. Bitte in RELAY_HOSTS aufnehmen.", flush=True)
     if not _stats:
         return
     parts = [f"{host}: {ok} ueber petriklar.com, {direct} direkt" for host, (ok, direct) in sorted(_stats.items())]
     print("[Relay] " + "; ".join(parts), file=sys.stderr, flush=True)
+
+
+def _via_relay(req, host: str, relay_url: str, key: str, fallback_note: str):
+    """Antwort ueber petriklar.com - oder None, wenn der Umweg nicht klappt."""
+    relay = relay_request(req, relay_url, key)
+    try:
+        if relay.type == "https":
+            resp = _original["https"](_relay_https, relay)
+        else:
+            resp = _original["http"](_relay_http, relay)
+        state = (resp.headers.get("X-PetriKlar-Relay") or "").lower()
+        if state == "ok":
+            resp.url = req.full_url
+            _count(host, 0)
+            return resp
+        detail = resp.read(300).decode("utf-8", "replace").strip()
+        resp.close()
+        print(f"[Relay] {host}: Umweg abgelehnt (HTTP {resp.status}: {detail[:160]}){fallback_note}",
+              file=sys.stderr, flush=True)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"[Relay] {host}: Umweg nicht erreichbar ({exc}){fallback_note}", file=sys.stderr, flush=True)
+    return None
 
 
 def _patched(kind: str):
@@ -89,26 +141,39 @@ def _patched(kind: str):
         # req.host zeigt bei gesetztem Proxy auf den Proxy - das Ziel steht in full_url.
         host = (urllib.parse.urlsplit(req.full_url).hostname or "").lower()
         relay_url, key = _config()
-        if relay_url and host in _hosts():
-            relay = relay_request(req, relay_url, key)
-            try:
-                if relay.type == "https":
-                    resp = _original["https"](_relay_https, relay)
-                else:
-                    resp = _original["http"](_relay_http, relay)
-                state = (resp.headers.get("X-PetriKlar-Relay") or "").lower()
-                if state == "ok":
-                    resp.url = req.full_url
-                    _count(host, 0)
-                    return resp
-                detail = resp.read(300).decode("utf-8", "replace").strip()
-                resp.close()
-                print(f"[Relay] {host}: Umweg abgelehnt (HTTP {resp.status}: {detail[:160]}) - direkter Abruf",
-                      file=sys.stderr, flush=True)
-            except (urllib.error.URLError, OSError, ValueError) as exc:
-                print(f"[Relay] {host}: Umweg nicht erreichbar ({exc}) - direkter Abruf", file=sys.stderr, flush=True)
+        if not relay_url:
+            return original(self, req)
+        if host in _hosts() or host in _newly_blocked:
+            resp = _via_relay(req, host, relay_url, key, " - direkter Abruf")
+            if resp is not None:
+                return resp
             _count(host, 1)
-        return original(self, req)
+            return original(self, req)
+        if host not in FALLBACK_HOSTS:
+            return original(self, req)
+        # Zuerst direkt; nur bei einer Ablehnung ueber den Umweg.
+        try:
+            direct = original(self, req)
+        except (urllib.error.URLError, OSError) as exc:
+            reason = str(getattr(exc, "reason", exc))[:80]
+            resp = _via_relay(req, host, relay_url, key, "")
+            if resp is None:
+                raise
+            if resp.status not in BLOCK_STATUS:
+                _newly_blocked[host] = reason
+            return resp
+        if direct.status not in BLOCK_STATUS:
+            _count(host, 1)
+            return direct
+        resp = _via_relay(req, host, relay_url, key, "")
+        if resp is None or resp.status in BLOCK_STATUS:
+            if resp is not None:
+                resp.close()
+            _count(host, 1)
+            return direct
+        direct.close()
+        _newly_blocked[host] = f"HTTP {direct.status}"
+        return resp
 
     return open_
 
