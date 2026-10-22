@@ -27,7 +27,8 @@ import urllib.request
 
 RELAY_HOSTS = frozenset({
     # Oesterreich
-    "data.ooe.gv.at", "hydro.tirol.gv.at", "www.noe.gv.at", "www.noel.gv.at",
+    # data.ooe.gv.at leitet auf www.land-oberoesterreich.gv.at um.
+    "data.ooe.gv.at", "www.land-oberoesterreich.gv.at", "hydro.tirol.gv.at", "www.noe.gv.at", "www.noel.gv.at",
     "info.ktn.gv.at", "hydrographie.ktn.gv.at", "egov.stmk.gv.at",
     "www.hydrografie.steiermark.at",
     # Deutschland

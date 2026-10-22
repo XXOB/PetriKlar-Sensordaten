@@ -24,7 +24,8 @@ declare(strict_types=1);
 
 const RELAY_HOSTS = [
     // Oesterreich
-    'data.ooe.gv.at', 'hydro.tirol.gv.at', 'www.noe.gv.at', 'www.noel.gv.at',
+    // data.ooe.gv.at leitet seit Oktober 2026 auf www.land-oberoesterreich.gv.at um.
+    'data.ooe.gv.at', 'www.land-oberoesterreich.gv.at', 'hydro.tirol.gv.at', 'www.noe.gv.at', 'www.noel.gv.at',
     'info.ktn.gv.at', 'hydrographie.ktn.gv.at', 'egov.stmk.gv.at',
     'www.hydrografie.steiermark.at', 'www.salzburg.gv.at', 'vowis.vorarlberg.at',
     'ehyd.gv.at', 'gis.lfrz.gv.at',
