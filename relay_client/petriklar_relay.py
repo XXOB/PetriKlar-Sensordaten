@@ -36,6 +36,10 @@ RELAY_HOSTS = frozenset({
     "wasserportal.berlin.de", "undine.bafg.de",
     "lfu.brandenburg.de", "mleuv-daten.brandenburg.de",
     "www.hydrologie.nrw.de",
+    # Am 22.10.2026 von der Selbstheilung gemeldet (Zeitueberschreitung direkt).
+    "www.pegelonline.wsv.de",
+    # Niederlande
+    "ddapi20-waterwebservices.rijkswaterstaat.nl",
     # Donau unterhalb Oesterreichs
     "afdj.ro",
 })
@@ -49,14 +53,14 @@ FALLBACK_HOSTS = frozenset({
     "www.salzburg.gv.at", "vowis.vorarlberg.at", "ehyd.gv.at", "gis.lfrz.gv.at",
     # Deutschland
     "www.hlnug.de", "app.hlnug.de", "www.wasser.sachsen.de",
-    "www.gewaessergueteonline.nlwkn.niedersachsen.de", "www.pegelonline.wsv.de",
+    "www.gewaessergueteonline.nlwkn.niedersachsen.de",
     "niz.baden-wuerttemberg.de", "www.hvz.baden-wuerttemberg.de", "inovum-services.de",
     "geodaten-wasser.rlp-umwelt.de", "www2.bsh.de", "www.gewaesser-monitoring.de",
     # Schweiz
     "www.hydrodaten.admin.ch", "data.bafu.admin.ch", "lindas.admin.ch",
     "ld.admin.ch", "environment.ld.admin.ch",
     # Niederlande
-    "ddapi20-waterwebservices.rijkswaterstaat.nl", "geo.rijkswaterstaat.nl",
+    "geo.rijkswaterstaat.nl",
     "rijkswaterstaatdata.nl", "waterinfo.rws.nl",
     # Nachbarlaender, Mur und Donau
     "opendata.chmi.cz", "danepubliczne.imgw.pl", "hubeau.eaufrance.fr", "www.dati.lombardia.it",
