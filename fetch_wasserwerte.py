@@ -1720,6 +1720,38 @@ def write_json(stations, temperature_supplement=()):
     JSON_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# Seit dem 21.10.2026 lehnen mehrere Behoerdenserver (u. a. GKD Bayern,
+# Wasserportal Berlin, LfU Brandenburg, BfG Undine) Anfragen von GitHub-Servern
+# zeitweise ab. Faellt eine Quelle in einem Lauf aus, verschwanden ihre
+# Stationen bisher komplett aus wasserwerte.json - und damit ganze Fluesse
+# (Isar, Spree, Havel ...) von den Karten. Jetzt bleiben die zuletzt
+# gelesenen Werte einer ausgefallenen Quelle mit ihrem echten Zeitstempel
+# erhalten, hoechstens 48 Stunden; die Karten blenden zu alte Werte selbst aus.
+GERMAN_SOURCES_TO_RETAIN=("gkd","berlin","undine","brandenburg","sachsen","nlwkn","lanuv-nrw","saarland-live","hlnug","bsh-marnet")
+RETAIN_FAILED_SOURCE_H=48
+
+def retain_failed_german_sources(stations):
+    try:
+        old=json.loads(JSON_FILE.read_text(encoding="utf-8"))
+        old_rows=old.get("stations",[]) if isinstance(old,dict) else []
+    except Exception:
+        return stations
+    present={s.get("src") for s in stations}
+    now=datetime.now()
+    def newest(row):
+        times=[parse_dt(str(i.get("time") or "")) for i in row.get("items",[])]
+        times=[t for t in times if t]
+        return max(times) if times else None
+    for src in GERMAN_SOURCES_TO_RETAIN:
+        if src in present:
+            continue
+        kept=[r for r in old_rows if r.get("src")==src and newest(r) and (now-newest(r)).total_seconds()<=RETAIN_FAILED_SOURCE_H*3600]
+        if kept:
+            print(f"[Cache] Quelle {src} ausgefallen: {len(kept)} Stationen mit letzten Werten (hoechstens {RETAIN_FAILED_SOURCE_H} h alt) beibehalten")
+            stations.extend(kept)
+    return stations
+
+
 def retain_cached_neighbor_networks(stations):
     """Nachbarland-Netze bei einer vorübergehend gestörten Behörde nicht löschen."""
     try:
@@ -1854,6 +1886,7 @@ def main():
         print("Keine Station erfolgreich abgerufen.")
         sys.exit(2)
     results=retain_cached_neighbor_networks(results)
+    results=retain_failed_german_sources(results)
     print(f"Schreibe wasserwerte.json ({len(results)} Station(en)) ...")
     # Same supplemental temperature feeds as the app; separate public file.
     from temperature_sources import collect

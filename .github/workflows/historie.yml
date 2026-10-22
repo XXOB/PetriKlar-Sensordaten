@@ -14,7 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         country: [CH, NL, AT]
-    runs-on: ubuntu-latest
+    # Fest auf 24.04: Seit der Umstellung von ubuntu-latest auf Ubuntu 26
+    # (ab 19.10.2026) lehnen mehrere Behoerdenserver die Abrufe ab.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
