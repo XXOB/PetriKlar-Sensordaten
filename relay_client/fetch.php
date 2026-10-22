@@ -22,6 +22,8 @@
 
 declare(strict_types=1);
 
+// curl_close() fehlt bewusst: seit PHP 8.0 wirkungslos, ab 8.5 als veraltet gemeldet.
+
 const RELAY_HOSTS = [
     // Oesterreich
     // data.ooe.gv.at leitet seit Oktober 2026 auf www.land-oberoesterreich.gv.at um.
@@ -147,7 +149,6 @@ if (isset($_GET['selftest'])) {
             'error' => curl_error($ch),
             'seconds' => round((float)curl_getinfo($ch, CURLINFO_TOTAL_TIME), 2),
         ];
-        curl_close($ch);
     }
     echo json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
@@ -234,7 +235,6 @@ while (ob_get_level() > 0) {
 }
 $ok = curl_exec($ch);
 $error = curl_error($ch);
-curl_close($ch);
 
 if (!$state['sent']) {
     if ($ok === false || $state['status'] === 0) {
