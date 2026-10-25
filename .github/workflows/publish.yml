@@ -35,6 +35,10 @@ jobs:
           cp europe-water.json _site/
           cp europe-temperature.json europe-level.json europe-directory.json _site/
           cp -r packets _site/
+          mkdir -p _site/assets/data
+          for file in lfu-brandenburg-current.json extra-sensors.json river-sensor-additions.json uk-river-sensors.json uk-river-temperatures.json; do
+            [ ! -f "assets/data/$file" ] || cp "assets/data/$file" _site/assets/data/
+          done
           cp wassertemperatur_verlauf.json _site/
           [ ! -f temperatur_zusatz.json ] || cp temperatur_zusatz.json _site/
           touch _site/.nojekyll

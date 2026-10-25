@@ -136,6 +136,27 @@ jobs:
             test -s assets/data/lfu-brandenburg-current.json
           }
 
+      # Britische Pegel und Wassertemperaturen werden hier zentral mit den
+      # übrigen amtlichen Quellen abgerufen. PetriKlar-Source kopiert danach
+      # ausschliesslich diese gespeicherten Ergebnisse.
+      - name: Britische Flusspegel aus EA und SEPA aktualisieren
+        if: always()
+        timeout-minutes: 15
+        run: |
+          python fetch_uk_river_sensors.py || {
+            echo "::warning::UK-Pegel nicht aktualisiert; letzter Stand bleibt erhalten."
+            test -s assets/data/uk-river-sensors.json
+          }
+
+      - name: Britische Wassertemperaturen aus der EA Hydrology API aktualisieren
+        if: always()
+        timeout-minutes: 8
+        run: |
+          python fetch_uk_river_temperatures.py || {
+            echo "::warning::UK-Wassertemperaturen nicht aktualisiert; letzter Stand bleibt erhalten."
+            test -s assets/data/uk-river-temperatures.json
+          }
+
       # Mur (ARSO, Slowenien) und Donau unterhalb Oesterreichs: Kroatien (DHMZ),
       # Serbien (RHMZ), Rumaenien (AFDJ), Bulgarien (APPD). Slowakei und Ungarn
       # verlangen fuer die Weiterverwendung eine Zustimmung und fehlen deshalb.
@@ -165,13 +186,30 @@ jobs:
         run: |
           python pegel_tageswerte.py --pegelkarte pegelkarte.json || echo "::warning::Pegelarchiv nicht aktualisiert; Pegelkarte bleibt unveraendert."
 
+      # Diese Verzeichnis-Snapshots werden ebenfalls in diesem einzigen
+      # Messwerte-Lauf abgefragt und von PetriKlar-Source nur noch übernommen.
+      - name: Öffentliche Stationsinventare und Pegelverläufe aktualisieren
+        if: always()
+        timeout-minutes: 5
+        run: |
+          python tools/refresh_public_networks.py || {
+            echo "::warning::Stationsinventar nicht vollständig aktualisiert; letzter Stand bleibt erhalten."
+            test -s tools/discovery-network-snapshot.json
+          }
+          python tools/refresh_discovery_pegel.py || {
+            echo "::warning::Öffentliche Pegelverläufe nicht aktualisiert; letzter Stand bleibt erhalten."
+            test -s tools/discovery-pegel-snapshot.json
+          }
+
       - name: Daten speichern
         if: always()
         run: |
           for file in wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json \
                       pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json \
                       undine_coords.json berlin_coords.json assets/data/lfu-brandenburg-current.json assets/data/extra-sensors.json \
-                      assets/data/river-sensor-additions.json; do
+                      assets/data/river-sensor-additions.json assets/data/uk-river-sensors.json \
+                      assets/data/uk-river-temperatures.json tools/discovery-network-snapshot.json \
+                      tools/discovery-pegel-snapshot.json; do
             [ ! -f "$file" ] || git add "$file"
           done
           for land in AT CH NL; do

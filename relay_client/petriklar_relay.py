@@ -56,6 +56,8 @@ FALLBACK_HOSTS = frozenset({
     "www.gewaessergueteonline.nlwkn.niedersachsen.de",
     "niz.baden-wuerttemberg.de", "www.hvz.baden-wuerttemberg.de", "inovum-services.de",
     "geodaten-wasser.rlp-umwelt.de", "www2.bsh.de", "www.gewaesser-monitoring.de",
+    # Grossbritannien: nur bei direkter Sperre ueber Netcup wiederholen.
+    "environment.data.gov.uk", "timeseries.sepa.org.uk",
     # Schweiz
     "www.hydrodaten.admin.ch", "data.bafu.admin.ch", "lindas.admin.ch",
     "ld.admin.ch", "environment.ld.admin.ch",

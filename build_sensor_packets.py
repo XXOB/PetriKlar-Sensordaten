@@ -227,7 +227,10 @@ def build(root, output):
             'mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns',
             'mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems',
             'aare','reuss','limmat','ticino','rhône','rhone','ijssel','lek','maas','nederrijn','waal','spree',
-            'rhein-maas-delta','havel'}
+            'rhein-maas-delta','havel',
+            # UK main rivers included by the centrally collected EA/SEPA feeds.
+            'aire','avon','clyde','dee','don','exe','great ouse','medway','mersey','nene',
+            'ribble','severn','spey','tay','tees','thames','trent','tweed','tyne','wye'}
     def mapped(s):
         river=str(s.get('river','')).strip().lower()
         tokens=re.findall(r'[^\W_]+',river,flags=re.UNICODE)

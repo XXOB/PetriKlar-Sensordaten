@@ -53,7 +53,8 @@ SITES = [
 ]
 TITLE = re.compile(
     r"roh?daten\s+bis\s+(\d{1,2}[./]\d{1,2}[./]\d{4})\s+(\d{1,2}:\d{2})\s*"
-    r"uhr\s*\(?\s*letzter\s*wert\s*[:;]?\s*(-?\d{1,2}(?:[,.]\s*\d{1,2})?)",
+    # OCR often reads the initial W in "Wert" as Y and inserts a V ("Yvert").
+    r"uhr\s*\(?\s*letzter\s*(?:wert|yvert)\s*[:;]?\s*(-?\d{1,2}(?:[,.]\s*\d{1,2})?)",
     re.IGNORECASE | re.DOTALL,
 )
 

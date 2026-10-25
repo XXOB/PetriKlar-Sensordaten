@@ -40,6 +40,8 @@ const RELAY_HOSTS = [
     'www.pegelonline.wsv.de', 'niz.baden-wuerttemberg.de', 'www.hvz.baden-wuerttemberg.de',
     'geodaten-wasser.rlp-umwelt.de', 'www2.bsh.de',
     'inovum-services.de', 'www.gewaesser-monitoring.de',
+    // Grossbritannien: nur bei direkter Sperre durch GitHub ueber Netcup.
+    'environment.data.gov.uk', 'timeseries.sepa.org.uk',
     // Schweiz und Niederlande
     'www.hydrodaten.admin.ch', 'data.bafu.admin.ch', 'lindas.admin.ch', 'ld.admin.ch',
     'environment.ld.admin.ch',
