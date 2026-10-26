@@ -1,0 +1,230 @@
+[
+  {
+    "id": "ea-water-temp-E08160A",
+    "source_station": "E08160A",
+    "name": "LEVEN_NEWBY BRIDGE GAUGING STATION_E_201704",
+    "river": "Leven (Cumbria)",
+    "lat": 54.26815,
+    "lon": -2.974908,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 11.808,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:12Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E00385A",
+    "source_station": "E00385A",
+    "name": "FOWEY_RESTORMEL_E_202002",
+    "river": "Fowey",
+    "lat": 50.431086,
+    "lon": -4.679554,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 12.869,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:12Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E03560A",
+    "source_station": "E03560A",
+    "name": "AVON_KNAPP MILL_E_202206",
+    "river": "Avon (Hampshire)",
+    "lat": 50.74531,
+    "lon": -1.782182,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 11.885,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:11Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E17107A",
+    "source_station": "E17107A",
+    "name": "TAMAR_GUNNISLAKE TRAP_E_202404",
+    "river": "Tamar",
+    "lat": 50.519131,
+    "lon": -4.206464,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 12.302,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:11Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E05962A",
+    "source_station": "E05962A",
+    "name": "STOUR_WIXOE_K_202411",
+    "river": "Stour (Suffolk)",
+    "lat": 52.058594,
+    "lon": 0.492977,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 11.4,
+        "unit": "°C",
+        "time": "2026-10-26T19:05:08Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E06141A",
+    "source_station": "E06141A",
+    "name": "TAME_LEA MARSTON_E_201906",
+    "river": "Tame (Midlands)",
+    "lat": 52.540801,
+    "lon": -1.695255,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 14.234,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:11Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E11145A",
+    "source_station": "E11145A",
+    "name": "AVON_LUCYS MILL_E_201904",
+    "river": "Avon (Warwickshire)",
+    "lat": 52.183745,
+    "lon": -1.708084,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 11.446,
+        "unit": "°C",
+        "time": "2026-10-26T19:00:26Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E03360A",
+    "source_station": "E03360A",
+    "name": "WITHAM_US GRANGE FARM_K_202109",
+    "river": "Witham",
+    "lat": 52.841749,
+    "lon": -0.624403,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 10.209,
+        "unit": "°C",
+        "time": "2026-10-26T19:00:21Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E05773A",
+    "source_station": "E05773A",
+    "name": "WEAVER_COOLE HALL FARM_E_202510",
+    "river": "Weaver",
+    "lat": 53.010222,
+    "lon": -2.507655,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 9.998,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:13Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E29998A",
+    "source_station": "E29998A",
+    "name": "DEBEN_SANCTUARY BRIDGE_E_202506",
+    "river": "Deben",
+    "lat": 52.178773,
+    "lon": 1.320828,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 9.789,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:12Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E07358A",
+    "source_station": "E07358A",
+    "name": "KENT_US PARK BECK_E_202601",
+    "river": "Kent",
+    "lat": 54.403883,
+    "lon": -2.839385,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 9.537,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:12Z"
+      }
+    ]
+  },
+  {
+    "id": "ea-water-temp-E02561A",
+    "source_station": "E02561A",
+    "name": "DON_DS WHARNCLIFFE WWTW_E_202603",
+    "river": "Don (Yorkshire)",
+    "lat": 53.444269,
+    "lon": -1.547914,
+    "country": "GB",
+    "src": "environment-agency",
+    "river_assignment": "agency-name-and-geometry-within-350m",
+    "items": [
+      {
+        "label": "Wassertemperatur",
+        "value": 10.363,
+        "unit": "°C",
+        "time": "2026-10-26T19:01:11Z"
+      }
+    ]
+  }
+]

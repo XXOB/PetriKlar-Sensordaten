@@ -33,6 +33,27 @@ TIMEOUT = 90
 MAX_HISTORY_DAYS = 30
 MAX_CURRENT_AGE = dt.timedelta(hours=48)
 MEASURE_SUFFIXES = ("-temp-i-subdaily-C", "-temp-i-900-C-qualified")
+ADDITIONAL_RIVERS = {"Avon (Hampshire)", "Avon (Warwickshire)", "Tamar", "Fowey",
+    "Tame (Midlands)", "Don (Yorkshire)", "Witham", "Weaver", "Leven (Cumbria)",
+    "Kent", "Deben", "Stour (Suffolk)"}
+HISTORY_BATCH_SIZE = 6  # Bounded URLs and complete 30-day responses, not a truncated bulk export.
+
+
+def assign_temperature_river(station, network):
+    """Use the agency waterbody name as well as the 350 m spatial check.
+
+    In particular Sincil Drain is near Witham, but is not a Witham thermometer.
+    Avon/Don/Leven names need geometry to disambiguate their separate catchments.
+    Legacy sites without the new name convention keep the existing assignment.
+    """
+    label = str(station.get("label") or "").split("_", 1)[0].strip().casefold()
+    label = re.sub(r"^river\s+", "", label)
+    named_rivers = {name for name in RIVERS if name.split(" (", 1)[0].casefold() == label}
+    if named_rivers:
+        candidates = {name: river for name, river in network.items() if name in named_rivers}
+        return assign_river(station["long"], station["lat"], candidates)
+    river = assign_river(station["long"], station["lat"], network)
+    return None if river in ADDITIONAL_RIVERS else river
 
 
 def fetch_json(url: str) -> dict:
@@ -88,7 +109,7 @@ def build_rows(stations, latest_readings, network, now: dt.datetime, history_rea
             continue
         if not isinstance(station.get("lat"), (int, float)) or not isinstance(station.get("long"), (int, float)):
             continue
-        river = assign_river(station["long"], station["lat"], network)
+        river = assign_temperature_river(station, network)
         if river not in RIVERS:
             continue
         current = latest_by_measure.get(measure_id)
@@ -127,7 +148,7 @@ def build_rows(stations, latest_readings, network, now: dt.datetime, history_rea
             "id": identifier,
             "name": station.get("label") or code,
             "river": river,
-            "river_assignment": "geometry-within-350m",
+            "river_assignment": "agency-name-and-geometry-within-350m" if river in ADDITIONAL_RIVERS else "geometry-within-350m",
             "lat": station["lat"],
             "lon": station["long"],
             "src": "environment-agency",
@@ -183,15 +204,16 @@ def collect(now=None, fetcher=fetch_json, network=None, previous=None):
     if measure_ids:
         start = (now - dt.timedelta(days=MAX_HISTORY_DAYS)).date().isoformat()
         end = now.date().isoformat()
-        params = [("measure", measure_id) for measure_id in measure_ids]
-        params.extend([("mineq-date", start), ("maxeq-date", end), ("_limit", 100000)])
-        history_url = api_url(READINGS_URL, params)
-        try:
-            history = fetcher(history_url).get("items", [])
-        except Exception as exc:
-            # Current values remain useful even if the optional playback query
-            # is temporarily unavailable; existing history is retained.
-            print(f"WARNING: EA temperature history unavailable: {str(exc)[:180]}")
+        for offset in range(0, len(measure_ids), HISTORY_BATCH_SIZE):
+            params = [("measure", measure_id) for measure_id in measure_ids[offset:offset + HISTORY_BATCH_SIZE]]
+            params.extend([("mineq-date", start), ("maxeq-date", end), ("_limit", 100000)])
+            history_url = api_url(READINGS_URL, params)
+            try:
+                history.extend(fetcher(history_url).get("items", []))
+            except Exception as exc:
+                # A failed history batch must not suppress current observations
+                # or erase the history of the other rivers.
+                print(f"WARNING: EA temperature history batch {offset // HISTORY_BATCH_SIZE + 1} unavailable: {str(exc)[:180]}")
     rows = build_rows(stations, latest, network, now, history, previous)
     matched = {row["id"] for row in rows}
     report = {

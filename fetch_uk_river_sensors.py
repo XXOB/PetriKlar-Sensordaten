@@ -36,6 +36,9 @@ RIVERS = {
     "Exe", "Great Ouse", "Medway", "Mersey", "Nene", "Ribble", "Severn",
     "Spey", "Tay", "Tees", "Thames", "Trent", "Tweed", "Tyne", "Wye",
     "Don (Aberdeenshire)",
+    "Avon (Hampshire)", "Avon (Warwickshire)", "Tamar", "Fowey",
+    "Tame (Midlands)", "Don (Yorkshire)", "Witham", "Weaver",
+    "Leven (Cumbria)", "Kent", "Deben", "Stour (Suffolk)",
 }
 MAX_MATCH_KM = 0.35
 EA_HISTORY_PER_RIVER = 2

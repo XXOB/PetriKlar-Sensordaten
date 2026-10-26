@@ -68,6 +68,12 @@ jobs:
         timeout-minutes: 12
         run: python country_pipeline.py AT || echo "::warning::AT nicht aktualisiert; letzter Stand bleibt erhalten."
 
+      # Offline contract tests: all twelve additional UK rivers must match their
+      # own geometry before the later UK collection steps use it. No extra API call.
+      - name: UK-Flusszuordnung und Temperaturimport pruefen
+        timeout-minutes: 2
+        run: python -m unittest discover -s tests -p 'test_uk*.py' -v
+
       - name: Schweiz
         timeout-minutes: 10
         run: python country_pipeline.py CH || echo "::warning::CH nicht aktualisiert; letzter Stand bleibt erhalten."
@@ -150,7 +156,9 @@ jobs:
 
       - name: Britische Wassertemperaturen aus der EA Hydrology API aktualisieren
         if: always()
-        timeout-minutes: 8
+        # Current catalogue/readings plus six bounded history requests for 33 sites.
+        # Allow their 90-second timeouts without killing the useful current values.
+        timeout-minutes: 15
         run: |
           python fetch_uk_river_temperatures.py || {
             echo "::warning::UK-Wassertemperaturen nicht aktualisiert; letzter Stand bleibt erhalten."
