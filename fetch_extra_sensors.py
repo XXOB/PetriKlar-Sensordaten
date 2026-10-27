@@ -14,8 +14,8 @@ Quellen (alle frei abrufbar, ohne Schluessel; Quelle wird stets genannt):
     Pegel, Temperatur)
   - Donau, Bulgarien: APPD Ruse, Tabelle der Hydrometeorologischen Stationen
     (taeglich; Pegel, Temperatur)
-Slowakei (SHMU) und Ungarn (OVSZ/Hydroinfo) verlangen fuer eine
-Weiterverwendung eine vorherige Zustimmung und sind deshalb nicht enthalten.
+  - Donau, Ungarn: OVF Open Data (Pegel und gemessene Wassertemperatur).
+Slowakei (SHMU) bleibt ohne bestaetigte Weiterverwendung ausserhalb des Imports.
 
 Faellt eine Quelle aus, bleiben ihre zuletzt gespeicherten Werte mit ihrem
 echten Zeitstempel erhalten; die Karten blenden zu alte Werte selbst aus.
@@ -230,7 +230,13 @@ def mura():
     return process_mura_current()
 
 
+def hungary():
+    from hungary_sources import collect
+    return collect()
+
+
 SOURCES = [
+    ("hu-ovf", "https://data.vizugy.hu/", hungary),
     ("arso-si", "https://www.arso.gov.si/en/water/data/stanje_voda.html", mura),
     ("hr-dhmz", DHMZ_URL, lambda: parse_dhmz(fetch(DHMZ_URL))),
     ("rs-rhmz", RHMZ_URL, lambda: parse_rhmz(fetch(RHMZ_URL))),
@@ -243,6 +249,8 @@ def merge_history(old: dict, new: dict, keep_days: int = 8):
     """Verlauf ueber die Laeufe fortschreiben (taegliche Quellen haben sonst nur einen Punkt)."""
     limit = datetime.now(timezone.utc) - timedelta(days=keep_days)
     history = {}
+    if old.get('temperature_parameter') and new.get('temperature_parameter') and old['temperature_parameter'] != new['temperature_parameter']:
+        old = {**old, 'history': {k:v for k,v in old.get('history',{}).items() if k!='Wassertemperatur'}}
     for label in set(old.get("history", {})) | set(new.get("history", {})):
         points = {p["t"]: p for p in (old.get("history", {}).get(label) or []) + (new.get("history", {}).get(label) or [])
                   if isinstance(p, dict) and p.get("t")}
@@ -271,7 +279,7 @@ def main():
     if not report:
         raise SystemExit("Keine Zusatzquelle erreichbar; vorheriger Stand bleibt.")
     payload = {"updated": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-               "note": "Amtliche Messwerte; Mur (ARSO) und Donau (DHMZ, RHMZ, AFDJ, APPD). Keine abgeleiteten Werte.",
+               "note": "Amtliche Messwerte; Mur (ARSO) und Donau (OVF, DHMZ, RHMZ, AFDJ, APPD). Keine abgeleiteten Werte.",
                "stations": stations,
                "temperature_stations": [s for s in stations if any(i["label"] == "Wassertemperatur" for i in s["items"])],
                "level_stations": [s for s in stations if any(i["label"] == "Pegelstand" for i in s["items"])],

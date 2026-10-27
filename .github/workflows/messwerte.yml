@@ -70,9 +70,11 @@ jobs:
 
       # Offline contract tests: all twelve additional UK rivers must match their
       # own geometry before the later UK collection steps use it. No extra API call.
-      - name: UK-Flusszuordnung und Temperaturimport pruefen
+      - name: UK-Flusszuordnung und Ungarn-Temperaturimport pruefen
         timeout-minutes: 2
-        run: python -m unittest discover -s tests -p 'test_uk*.py' -v
+        run: |
+          python -m unittest discover -s tests -p 'test_uk*.py' -v
+          python -m unittest discover -s tests -p 'test_hungary_sources.py' -v
 
       - name: Schweiz
         timeout-minutes: 10
@@ -166,11 +168,11 @@ jobs:
           }
 
       # Mur (ARSO, Slowenien) und Donau unterhalb Oesterreichs: Kroatien (DHMZ),
-      # Serbien (RHMZ), Rumaenien (AFDJ), Bulgarien (APPD). Slowakei und Ungarn
-      # verlangen fuer die Weiterverwendung eine Zustimmung und fehlen deshalb.
+      # Serbien (RHMZ), Rumaenien (AFDJ), Bulgarien (APPD), Ungarn (OVF). Slowakei
+      # bleibt ohne bestaetigte Weiterverwendung ausgenommen. Ungarn: OVF Open Data.
       - name: Mur- und Donau-Messstellen ausserhalb DE/AT abrufen
         if: always()
-        timeout-minutes: 4
+        timeout-minutes: 7
         run: |
           python fetch_extra_sensors.py || {
             echo "::warning::Zusatzquellen nicht vollständig erreichbar; letzter Stand bleibt erhalten."
