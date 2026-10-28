@@ -1,5 +1,9 @@
 name: Sensordaten veröffentlichen
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish.yml
   workflow_run:
     workflows: [Messwerte, Pegelhistorie ergänzen, Temperaturarchiv nachtragen]
     types: [completed]
@@ -31,6 +35,11 @@ jobs:
         run: |
           mkdir -p _site
           cp wasserwerte.json _site/
+          # Metadata and already-public readings for the password-protected
+          # Netcup admin audit. No additional authority request occurs here.
+          cp niz_temperature.json _site/
+          mkdir -p _site/tools
+          cp tools/discovery-network-snapshot.json _site/tools/
           cp pegelkarte.json _site/
           cp europe-water.json _site/
           cp europe-temperature.json europe-level.json europe-directory.json _site/
