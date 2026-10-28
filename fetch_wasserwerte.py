@@ -1235,6 +1235,7 @@ UNDINE_STATION_ALIASES = {
     ("rhein", "koblenz_rhein"): "koblenz_rh",
     ("rhein", "duesseldorf_flehe"): "ddorf_flehe",
     ("rhein", "muelheim"): "muelheim_kahl",
+    ("elbe", "potsdam"): "potsdam_humboldtbr",
 }
 
 def swiss_to_wgs84(easting, northing):
@@ -1252,6 +1253,9 @@ def swiss_to_wgs84(easting, northing):
     return round(lat*100/36,5), round(lon*100/36,5)
 
 def undine_station_url(region, key):
+    # Kaub is a WSV gauge, not a quality-station page (the latter returns 404).
+    if (region, key) == ("rhein", "kaub"):
+        return "https://undine.bafg.de/rhein/pegel/rhein_pegel_kaub.html"
     if (region, key) == ("rhein", "rekingen"):
         return "https://www.hydrodaten.admin.ch/en/seen-und-fluesse/stations/2143"
     slug=UNDINE_STATION_ALIASES.get((region,key),key)
@@ -1304,8 +1308,12 @@ def undine_wt(region):
             if kind=="o2" else re.search(r"Wassertemperatur:\s*([\-\d.,]+)", v, re.I))
         md=re.search(r"Datum:\s*([\d.]+),?\s*([\d:]+)", v, re.I)
         if not mv: continue
+        value=to_number(mv.group(1))
+        # The feed explicitly uses -9999 for missing measurements. Never turn
+        # that sentinel into a temperature/O2 observation or archive sample.
+        if value is None or not (-2<=value<=40 if kind=="t" else 0<=value<=30): continue
         d=out.setdefault(key,{"t":None,"d":"","o2":None,"d_o2":""})
-        d[kind]=to_number(mv.group(1))
+        d[kind]=value
         d["d_o2" if kind=="o2" else "d"]=(md.group(1)+" "+md.group(2)) if md else ""
     return out
 
@@ -1318,12 +1326,19 @@ def undine_station_coords(region, key, cache):
         lat,lon=swiss_to_wgs84(2_667_045,1_269_233)
         cache[ck]={"lat":lat,"lon":lon,"name":"Rekingen","river":"Rhein","source_url":url}
         return cache[ck]
+    # The old UNDINE Potsdam page uses S42/83 coordinates, not Bessel/GK.
+    # Use the operator's published ETRS89/UTM33 position for HV_0110 instead.
+    # https://lfu.brandenburg.de/lfu/de/aufgaben/wasser/fliessgewaesser-und-seen/gewaesserueberwachung/wasserguetemessnetz/potsdam/
+    if (region,key)==("elbe","potsdam"):
+        lat,lon=utm33_to_wgs84(368906,5807343)
+        cache[ck]={"lat":round(lat,5),"lon":round(lon,5),"name":"Potsdam-Humboldtbrücke","river":"Havel","source_url":url}
+        return cache[ck]
     cached=cache.get(ck)
     if isinstance(cached,dict) and "lat" in cached:
         cached.setdefault("source_url",url)
         return cached
     now=datetime.now(timezone.utc).timestamp()
-    if isinstance(cached,dict) and cached.get("retry_after",0)>now:
+    if isinstance(cached,dict) and cached.get("retry_after",0)>now and (region,key)!=("rhein","kaub"):
         return None
     # Old null entries must be retried; temporary failures are not permanent.
     # Cache failures for a day to avoid wasting every hourly collector run.
@@ -1339,7 +1354,7 @@ def undine_station_coords(region, key, cache):
     name=key; river=""
     mt=re.search(r"<title>([^<]+)</title>", html)
     if mt:
-        nm=re.sub(r"^\s*Messstation\s+","",mt.group(1).split("|")[0].strip())
+        nm=re.sub(r"^\s*(?:Messstation|Pegel)\s+","",mt.group(1).split("|")[0].strip())
         if "," in nm: river=nm.rsplit(",",1)[1].strip(); name=nm.rsplit(",",1)[0].strip()
         else: name=nm
     if not mrh:
@@ -1390,6 +1405,63 @@ def process_undine():
     except Exception: pass
     print(f"[Undine/BfG] {len(results)} Gütestationen (Temperatur/Sauerstoff soweit verfügbar)")
     return results
+
+
+# ------------------------------------------------------ Hamburg (HU/WGMN) ----
+# Official numeric tables linked by UNDINE; UNDINE's aggregate feed currently
+# omits these stations despite fresh direct readings. Metadata: UNDINE station
+# sheets, public licence: DL-DE/BY-2.0, Freie und Hansestadt Hamburg / HU.
+HAMBURG_STATIONS = [
+    ("seemannshoeft", "Seemannshöft", "SH"),
+    ("bunthaus", "Bunthaus", "BU"),
+    ("blankenese", "Blankenese", "BL"),
+]
+
+def parse_hamburg_readings(page):
+    items={}
+    for row in re.findall(r"<tr\b[^>]*>([\s\S]*?)</tr>",page,re.I):
+        cells=[clean_html(c) for c in re.findall(r"<td\b[^>]*>([\s\S]*?)</td>",row,re.I)]
+        if len(cells)!=4: continue
+        stamp,name,raw,unit=cells
+        dt=parse_dt(stamp); value=to_number(raw)
+        if dt is None or value is None: continue
+        lower=name.casefold()
+        label=("Wassertemperatur" if lower=="wassertemperatur" else
+               "Sauerstoff" if lower=="sauerstoffkonzentration" else
+               "O₂-Sättigung" if lower=="sauerstoffsättigung" else
+               "pH-Wert" if lower=="ph-wert" else
+               "Leitfähigkeit" if lower.startswith("leitfähigkeit") else
+               "Trübung" if lower=="trübung" else None)
+        if not label: continue
+        if label=="Wassertemperatur" and not -2<=value<=40: continue
+        if label!="Wassertemperatur" and value<0: continue
+        observed=dt.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+        if observed>datetime.now(timezone.utc)+timedelta(minutes=20): continue
+        item={"label":label,"value":value,"unit":unit if unit!="ohne" else "",
+              "time":observed.isoformat(timespec="minutes")}
+        if label not in items or item["time"]>items[label]["time"]: items[label]=item
+    return list(items.values())
+
+def process_hamburg():
+    cache=load_json_cache(UNDINE_COORDS_FILE); result=[]
+    for key,name,code in HAMBURG_STATIONS:
+        url=f"https://www.wgmn-hamburg.de/daten-2/ReportAktuelleMesswerte-{code}-2.html"
+        try:
+            items=parse_hamburg_readings(decode_text(fetch_bytes(url)))
+            if not any(i["label"]=="Wassertemperatur" for i in items):
+                raise ValueError("No dated numeric water-temperature reading")
+            coord=undine_station_coords("elbe",key,cache)
+            if not coord: raise ValueError("No verified station coordinates")
+            result.append({"id":"hh-wgmn-"+code.lower(),"name":name,"river":"Elbe",
+                "lat":coord["lat"],"lon":coord["lon"],"src":"hamburg-wgmn","country":"DE",
+                "source_url":url,"data_source_url":url,
+                "attribution":"Freie und Hansestadt Hamburg, Institut für Hygiene und Umwelt (DL-DE/BY-2.0)",
+                "updated":now_text(),"items":items,"history":{}})
+        except Exception as error:
+            print(f"::warning::Hamburg {name}: {error}")
+    UNDINE_COORDS_FILE.write_text(json.dumps(cache,ensure_ascii=False),encoding="utf8")
+    print(f"[Hamburg/WGMN] {len(result)} automatische Elbe-Gütestationen")
+    return result
 
 
 # -------------------------------------------------- Nord-/Ostsee (BSH MARNET) ----
@@ -1788,7 +1860,7 @@ def write_json(stations, temperature_supplement=()):
 # (Isar, Spree, Havel ...) von den Karten. Jetzt bleiben die zuletzt
 # gelesenen Werte einer ausgefallenen Quelle mit ihrem echten Zeitstempel
 # erhalten, hoechstens 48 Stunden; die Karten blenden zu alte Werte selbst aus.
-GERMAN_SOURCES_TO_RETAIN=("gkd","berlin","undine","brandenburg","sachsen","nlwkn","lanuv-nrw","saarland-live","hlnug","bsh-marnet","rlp-gus")
+GERMAN_SOURCES_TO_RETAIN=("gkd","berlin","undine","brandenburg","sachsen","nlwkn","lanuv-nrw","hamburg-wgmn","saarland-live","hlnug","bsh-marnet","rlp-gus")
 RETAIN_FAILED_SOURCE_H=48
 
 def retain_failed_german_sources(stations):
@@ -1965,6 +2037,10 @@ def main():
         results.extend(process_undine())
     except Exception as e:
         print(f"      FEHLER Undine: {e}")
+    try:
+        results.extend(process_hamburg())
+    except Exception as e:
+        print(f"::warning::Hamburg/WGMN: {e}")
     try:                                   # BSH-Messnetz in Nord- und Ostsee
         results.extend(process_marnet_metadata())
     except Exception as e:

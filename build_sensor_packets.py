@@ -88,10 +88,6 @@ def build(root, output):
             except (KeyError,TypeError,ValueError):
                 continue
         return [p for _,p in sorted(buckets.values())]
-    rows={str(s['id']):s for s in extra.get('stations',[])}
-    rows.update({str(s['id']):s for s in water.get('stations',[])})
-    rows.update({str(s['id']):s for s in niz.get('stations',[])})
-    rows.update({str(s['id']):s for s in brandenburg_snapshot.get('stations',[])})
     def stamp_of(value):
         try:
             dt=datetime.fromisoformat(str(value).replace('Z','+00:00'))
@@ -102,6 +98,36 @@ def build(root, output):
                 return 0.0
         if dt.tzinfo is None: dt=dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
         return dt.timestamp()
+    def merge_temperature_rows(known, incoming):
+        # Separate snapshots are produced at different times. A failed OCR/NIZ
+        # refresh must not overwrite the newer measurement from the main feed.
+        by_label={i.get('label'):i for i in known.get('items',[])}
+        for item in incoming.get('items',[]):
+            old=by_label.get(item.get('label'))
+            valid=numeric(item.get('value'))
+            if item.get('label')=='Wassertemperatur' and valid is not None and not -2<=valid<=40:
+                valid=None
+            if old is None or valid is not None and (numeric(old.get('value')) is None or stamp_of(item.get('time'))>=stamp_of(old.get('time'))):
+                by_label[item.get('label')]=item
+        history={}
+        for source in (known,incoming):
+            for label,points in (source.get('history') or {}).items():
+                history.setdefault(label,{}).update({str(p['t']):p for p in points if isinstance(p,dict) and p.get('t')})
+        # Preserve the provenance of the selected temperature, not the last
+        # loaded (possibly stale) snapshot's source URL.
+        selected=by_label.get('Wassertemperatur')
+        provenance=known if selected is not None and any(selected is i for i in known.get('items',[])) else incoming
+        metadata={**known,**incoming}
+        for key in ('source_url','data_source_url','data_note','attribution','src'):
+            if key in provenance: metadata[key]=provenance[key]
+        return {**metadata,'items':list(by_label.values()),
+                'history':{k:sorted(v.values(),key=lambda p:stamp_of(p['t'])) for k,v in history.items()}}
+    rows={}
+    for snapshot in (extra,water,niz,brandenburg_snapshot):
+        for station in snapshot.get('stations',[]):
+            key=str(station.get('id') or '')
+            if key: rows[key]=merge_temperature_rows(rows[key],station) if key in rows else station
+
     def rws_series_key(station):
         if station.get('src') != 'rijkswaterstaat' or not station.get('source_station'):
             return None
@@ -218,6 +244,11 @@ def build(root, output):
     for row in rows.values():
         items=[i for i in row.get('items',[]) if 'wassertemperatur' in i.get('label','').lower()]
         history={k:recent(v) for k,v in row.get('history',{}).items() if 'wassertemperatur' in k.lower()}
+        if not items and (row.get('params') or {}).get('wt'):
+            # A known thermometer is not a current reading. Keep the station
+            # visible/clickable even during an outage (e.g. Saale/Hof), without
+            # colouring any reach or stamping a fabricated value with 'now'.
+            items=[{'label':'Wassertemperatur','value':None,'unit':'°C','time':None,'quality':'unavailable'}]
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
     short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}

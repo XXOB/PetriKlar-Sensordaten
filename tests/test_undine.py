@@ -67,4 +67,33 @@ class UndineTests(unittest.TestCase):
         self.assertEqual(values['rekingen']['o2'],7.3)
         self.assertNotIn('rheinfelden',values)
 
+
+    def test_kaub_gauge_page_and_potsdam_operator_position(self):
+        self.assertIn('/pegel/rhein_pegel_kaub.html',collector.undine_station_url('rhein','kaub'))
+        self.assertIn('potsdam_humboldtbr',collector.undine_station_url('elbe','potsdam'))
+        with patch.object(collector,'fetch_gkd_html',side_effect=AssertionError('Use verified operator position')):
+            c=collector.undine_station_coords('elbe','potsdam',{'elbe/potsdam':{'retry_after':1e12}})
+        self.assertAlmostEqual(c['lat'],52.4006,places=4)
+        self.assertAlmostEqual(c['lon'],13.07308,places=4)
+        page='<title>Pegel Kaub, Rhein</title>Rechtswert / Hochwert: 3411690 / 5550660'
+        with patch.object(collector,'fetch_gkd_html',return_value=page):
+            c=collector.undine_station_coords('rhein','kaub',{'rhein/kaub':{'retry_after':1e12}})
+        self.assertEqual(c['name'],'Kaub')
+        self.assertEqual(c['river'],'Rhein')
+        self.assertTrue(50.07<c['lat']<50.10 and 7.75<c['lon']<7.78)
+
+    def test_missing_value_sentinel_is_not_an_observation(self):
+        js='var wt_tangermuende="Datum: 28.10.2026, 07:00 Wassertemperatur: -9999.0"; var o2_tangermuende="Datum: 28.10.2026, 07:00 Sauerstoffgehalt: -9999.0";'
+        with patch.object(collector,'fetch_gkd_html',return_value=js):
+            self.assertEqual(collector.undine_wt('elbe'),{})
+
+    def test_hamburg_numeric_table_uses_each_real_time(self):
+        page='<table><tr><td>28.10.2026 08:50</td><td>Wassertemperatur</td><td>11.9</td><td>°C</td></tr><tr><td>28.10.2026 08:40</td><td>Sauerstoffkonzentration</td><td>8.3</td><td>mg/l</td></tr></table>'
+        rows=collector.parse_hamburg_readings(page)
+        self.assertEqual(rows[0]['value'],11.9)
+        self.assertEqual(rows[0]['time'],'2026-10-28T08:50+01:00')
+        self.assertEqual(rows[1]['time'],'2026-10-28T08:40+01:00')
+        self.assertEqual(collector.parse_hamburg_readings(page.replace('11.9','-9999'))[0]['label'],'Sauerstoff')
+        self.assertEqual(collector.parse_hamburg_readings('<td>11.9 °C</td>'),[])
+
 if __name__=='__main__': unittest.main()

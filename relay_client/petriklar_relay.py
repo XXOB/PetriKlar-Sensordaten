@@ -54,6 +54,7 @@ FALLBACK_HOSTS = frozenset({
     # Deutschland
     "www.hlnug.de", "app.hlnug.de", "www.wasser.sachsen.de",
     "www.gewaessergueteonline.nlwkn.niedersachsen.de",
+    "www.wgmn-hamburg.de",
     "niz.baden-wuerttemberg.de", "www.hvz.baden-wuerttemberg.de", "inovum-services.de",
     "geodaten-wasser.rlp-umwelt.de", "www2.bsh.de", "www.gewaesser-monitoring.de",
     # Grossbritannien: nur bei direkter Sperre ueber Netcup wiederholen.

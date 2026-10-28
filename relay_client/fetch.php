@@ -39,7 +39,7 @@ const RELAY_HOSTS = [
     'www.wasser.sachsen.de', 'www.gewaessergueteonline.nlwkn.niedersachsen.de',
     'www.pegelonline.wsv.de', 'niz.baden-wuerttemberg.de', 'www.hvz.baden-wuerttemberg.de',
     'geodaten-wasser.rlp-umwelt.de', 'www2.bsh.de',
-    'inovum-services.de', 'www.gewaesser-monitoring.de',
+    'inovum-services.de', 'www.gewaesser-monitoring.de', 'www.wgmn-hamburg.de',
     // Grossbritannien: nur bei direkter Sperre durch GitHub ueber Netcup.
     'environment.data.gov.uk', 'timeseries.sepa.org.uk',
     // Schweiz und Niederlande

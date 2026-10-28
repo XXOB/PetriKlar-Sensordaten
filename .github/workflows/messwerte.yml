@@ -64,6 +64,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyproj beautifulsoup4
 
+      - name: Deutsche Temperaturadapter pruefen
+        timeout-minutes: 2
+        run: |
+          python -m unittest discover -s tests -p 'test_undine.py' -v
+          python -m unittest discover -s tests -p 'test_lfu_brandenburg_temperature.py' -v
+          python -m unittest discover -s tests -p 'test_temperature_snapshot_recovery.py' -v
+
       - name: Oesterreich
         timeout-minutes: 12
         run: python country_pipeline.py AT || echo "::warning::AT nicht aktualisiert; letzter Stand bleibt erhalten."
@@ -132,7 +139,7 @@ jobs:
       # aktuellen Wert nur im Titel seiner 31-Tage-Diagramme; die CSV hinkt
       # Wochen hinterher. Der Abruf lief frueher nur in PetriKlar-Source - die
       # Live-Karte liest aber dieses Repository, und die Havel fiel aus.
-      - name: Havel- und Spree-Temperaturen aus LfU-Diagrammen lesen
+      - name: Elbe-, Havel- und Spree-Temperaturen aus LfU-Diagrammen lesen
         if: always()
         timeout-minutes: 5
         run: |

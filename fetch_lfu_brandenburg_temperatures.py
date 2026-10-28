@@ -26,6 +26,12 @@ OUTPUT = ROOT / "assets/data/lfu-brandenburg-current.json"
 BERLIN = ZoneInfo("Europe/Berlin")
 SITES = [
     {
+        "id": "bb-cumlosen", "name": "Cumlosen", "river": "Elbe",
+        "lat": 53.04187, "lon": 11.63648,
+        "chart": "https://mleuv-daten.brandenburg.de/w/WGMN/Cumlosen/wtemp_31t_cuml_kl.png",
+        "page": "https://lfu.brandenburg.de/lfu/de/aufgaben/wasser/fliessgewaesser-und-seen/gewaesserueberwachung/wasserguetemessnetz/cumlosen/",
+    },
+    {
         "id": "bb-potsdam", "name": "Potsdam", "river": "Havel",
         "chart": "https://mleuv-daten.brandenburg.de/w/WGMN/Potsdam/wtemp_31t_pots_kl.png",
         "page": "https://lfu.brandenburg.de/lfu/de/aufgaben/wasser/fliessgewaesser-und-seen/gewaesserueberwachung/wasserguetemessnetz/potsdam/",
@@ -54,7 +60,7 @@ SITES = [
 TITLE = re.compile(
     r"roh?daten\s+bis\s+(\d{1,2}[./]\d{1,2}[./]\d{4})\s+(\d{1,2}:\d{2})\s*"
     # OCR often reads the initial W in "Wert" as Y and inserts a V ("Yvert").
-    r"uhr\s*\(?\s*letzter\s*(?:wert|yvert)\s*[:;]?\s*(-?\d{1,2}(?:[,.]\s*\d{1,2})?)",
+    r"uhr\s*(?:\(|f)?\s*letzter\s*(?:wert|yvert)\s*[:;]?\s*(-?\d{1,2}(?:[,.]\s*\d{1,2})?)",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -102,12 +108,12 @@ def read_latest(chart_url: str, now: datetime | None = None) -> tuple[datetime, 
 def station_metadata(site: dict, catalog: dict, old: dict) -> dict:
     previous = next((s for s in old.get("stations", []) if s.get("id") == site["id"]), {})
     catalog_row = next((s for s in catalog.get("stations", []) if s.get("id") == site["id"]), {})
-    if not previous and not catalog_row:
+    if not previous and not catalog_row and not (site.get("lat") and site.get("lon")):
         raise ValueError(f"No known station metadata for {site['id']}")
     row = {
         "id": site["id"], "name": site["name"], "river": site["river"],
-        "lat": previous.get("lat", catalog_row.get("lat")),
-        "lon": previous.get("lon", catalog_row.get("lon")),
+        "lat": previous.get("lat", catalog_row.get("lat", site.get("lat"))),
+        "lon": previous.get("lon", catalog_row.get("lon", site.get("lon"))),
         "src": "brandenburg", "country": "DE",
         "attribution": "Landesamt für Umwelt Brandenburg",
         "source_url": site["page"], "data_source_url": site["chart"],
@@ -143,7 +149,7 @@ def main() -> None:
             old_row = previous.get(site["id"])
             if old_row:
                 output_rows.append(old_row)
-            print(f"WARNING {site['name']}: {error}")
+            print(f"::warning::LfU {site['name']}: {error}")
     if not successes:
         raise RuntimeError("No current Havel/Spree chart values could be read; previous snapshot preserved.")
     payload = {
