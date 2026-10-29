@@ -3,7 +3,6 @@ import argparse
 import hashlib
 import json
 import math
-import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -252,25 +251,15 @@ def build(root, output):
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
     short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}
-    # Alles, was die Karte zeichnet. Fehlt ein Name hier, verschwinden seine
-    # Stationen still aus dem Paket, obwohl die Linie gezeichnet wird.
-    rivers={'rhein','rhine','hochrhein','oberrhein','mittelrhein','niederrhein','donau','danube','dunaj',
-            'mosel','moselle','elbe','labe','weser','main','oder','odra','inn','lech','salzach','enns',
-            'mur','drau','traun','isar','neckar','saale','sächsische saale','leine','aller','ems',
-            'aare','reuss','limmat','ticino','rhône','rhone','ijssel','lek','maas','nederrijn','waal','spree',
-            'rhein-maas-delta','havel',
-            # UK main rivers included by the centrally collected EA/SEPA feeds.
-            'aire','avon','clyde','dee','don','exe','great ouse','medway','mersey','nene',
-            'ribble','severn','spey','tay','tees','thames','trent','tweed','tyne','wye'}
-    def mapped(s):
-        river=str(s.get('river','')).strip().lower()
-        tokens=re.findall(r'[^\W_]+',river,flags=re.UNICODE)
-        return river in rivers or any(token in rivers for token in tokens) or 'bodensee' in river
     update_candidates=[(stamp_of(value),value) for value in
         (water.get('updated'),niz.get('updated'),brandenburg_snapshot.get('updated'),europe.get('updated'),
          europe_levels.get('updated'),river_additions.get('updated'),extra_sensors.get('updated')) if value]
     latest_update=max(update_candidates,default=(0,water.get('updated')),key=lambda item:item[0])[1]
-    write(output/'temperature-map.json',{'data':{'stations':[s for s in temperatures if mapped(s)]},'archive':{**short_archive,'stations':[s for s in short_archive['stations'] if mapped(s)]},'updated':latest_update})
+    # The river geometry, not a second hard-coded name list, decides which
+    # readings can colour a line. Keep every thermometer in the packet so the
+    # optional station layer and nearby-station search do not silently lose
+    # real stations on tributaries, canals or newly added rivers.
+    write(output/'temperature-map.json',{'data':{'stations':temperatures},'archive':short_archive,'updated':latest_update})
     def compact_time(value):
         try:
             dt=datetime.fromisoformat(str(value).replace('Z','+00:00'))

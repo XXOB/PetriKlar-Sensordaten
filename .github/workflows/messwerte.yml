@@ -126,7 +126,7 @@ jobs:
             test -s pegelkarte.json
           }
 
-      - name: Neckar-Temperaturen aus dem amtlichen NIZ abrufen
+      - name: Flusstemperaturen aus dem amtlichen NIZ abrufen
         if: always()
         timeout-minutes: 2
         run: |

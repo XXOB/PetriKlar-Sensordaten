@@ -1,4 +1,4 @@
-"""Store current official NIZ Neckar temperatures for the public river map.
+"""Store current official NIZ river temperatures for the public river map.
 
 The NIZ endpoint publishes the latest observation, not a seven-day series. Keep
 previously collected observations with their original times; never invent values.
@@ -21,7 +21,8 @@ def convert(payload, previous, now):
     stations = []
     for row in payload.get('data', []):
         attrs = row.get('attributes') or {}
-        if attrs.get('gewaesser') != 'Neckar':
+        river = str(attrs.get('gewaesser') or '').strip()
+        if not river:
             continue
         position = attrs.get('geometry') or {}
         measurement = (attrs.get('messreihen') or {}).get('temp') or {}
@@ -48,7 +49,7 @@ def convert(payload, previous, now):
             continue
         points = sorted((p for p in history.values() if datetime.fromisoformat(p['t']) >= now - timedelta(days=9)),
                         key=lambda p: p['t'])
-        stations.append({'id': ident, 'name': attrs.get('name') or 'Neckar', 'river': 'Neckar',
+        stations.append({'id': ident, 'name': attrs.get('name') or river, 'river': river,
                          'lat': lat, 'lon': lon, 'src': 'niz', 'source_url': SOURCE,
                          'items': [current], 'history': {'Wassertemperatur': points}})
     return {'updated': now.isoformat(), 'source_url': URL, 'stations': stations}
@@ -63,12 +64,12 @@ def main():
         payload = json.load(response)
     result = convert(payload, previous, datetime.now(timezone.utc))
     if not result['stations']:
-        raise RuntimeError('No NIZ Neckar temperatures; preserving existing file')
+        raise RuntimeError('No NIZ temperatures; preserving existing file')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix('.tmp')
     temporary.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf8')
     temporary.replace(args.output)
-    print('NIZ Neckar temperature stations:', len(result['stations']))
+    print('NIZ temperature stations:', len(result['stations']))
 
 
 if __name__ == '__main__':
