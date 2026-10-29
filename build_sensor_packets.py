@@ -29,6 +29,23 @@ def numeric(value):
         return None
 
 
+def current_temperature_packet(stations, updated, generated_at):
+    """First paint: station metadata and measured values, never history."""
+    return {'data': {'stations': [{k: v for k, v in station.items() if k != 'history'}
+                                  for station in stations]},
+            'archive': None, 'updated': updated, 'generated_at': generated_at,
+            'initialOnly': True}
+
+
+def current_level_packet(levels, generated_at):
+    """Keep native gauge units/references; defer the week-long histories."""
+    return {**{k: v for k, v in levels.items()
+               if k in ('schema', 'fetched_at', 'source_url')},
+            'stations': [{k: v for k, v in station.items() if k != 'history'}
+                         for station in levels.get('stations', [])],
+            'generated_at': generated_at, 'initialOnly': True}
+
+
 def retain(points, now):
     """Keep real observation times: 30 days hourly, remainder of year every 4h."""
     buckets={}
@@ -260,6 +277,8 @@ def build(root, output):
     # optional station layer and nearby-station search do not silently lose
     # real stations on tributaries, canals or newly added rivers.
     write(output/'temperature-map.json',{'data':{'stations':temperatures},'archive':short_archive,'updated':latest_update})
+    generated_at=datetime.now(timezone.utc).isoformat()
+    write(output/'temperature-map-current.json',current_temperature_packet(temperatures,latest_update,generated_at))
     def compact_time(value):
         try:
             dt=datetime.fromisoformat(str(value).replace('Z','+00:00'))
@@ -267,6 +286,7 @@ def build(root, output):
         except ValueError:
             return value
     write(output/'level-map.json',{**{k:v for k,v in levels.items() if k in ('schema','fetched_at','source_url')},'packed_history':True,'stations':[{**s,'history':[[compact_time(p['t']),p['v']] for p in recent(s.get('history',[]))]} for s in levels.get('stations',[])]})
+    write(output/'level-map-current.json',current_level_packet(levels,generated_at))
     # Monatsverlauf der Pegel getrennt ablegen: die Wochenkarte bleibt klein,
     # die 30-Tage-Ansicht laedt diese Datei nur bei Bedarf.
     write(output/'level-history.json',{'fetched_at':levels.get('fetched_at'),'packed_history':True,
