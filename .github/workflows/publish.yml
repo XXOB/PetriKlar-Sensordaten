@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/publish.yml
       - build_sensor_packets.py
+      - temperature_plausibility.py
   workflow_run:
     workflows: [Messwerte, Pegelhistorie ergänzen, Temperaturarchiv nachtragen]
     types: [completed]

@@ -6,6 +6,7 @@ import math
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from temperature_plausibility import screen as screen_temperatures, timestamp as temperature_timestamp
 
 
 def read(path):
@@ -268,7 +269,13 @@ def build(root, output):
             items=[{'label':'Wassertemperatur','value':None,'unit':'°C','time':None,'quality':'unavailable'}]
         if items or history:
             temperatures.append({**{k:v for k,v in row.items() if k not in ('items','history')},'items':items,'history':history})
-    short_archive={**archive,'stations':[{**s,'values':recent(s.get('values',[]))} for s in archive.get('stations',[])]}
+    rejected_intervals=screen_temperatures(temperatures,archive)
+    def accepted(station_id, point):
+        intervals=rejected_intervals.get(str(station_id),[])
+        stamp=temperature_timestamp(point.get('t'))
+        return stamp is None or not any(start<=stamp<=end for start,end in intervals)
+    short_archive={**archive,'stations':[{**s,'values':[p for p in recent(s.get('values',[])) if accepted(s.get('id'),p)]}
+                                          for s in archive.get('stations',[])]}
     update_candidates=[(stamp_of(value),value) for value in
         (water.get('updated'),niz.get('updated'),brandenburg_snapshot.get('updated'),europe.get('updated'),
          europe_levels.get('updated'),river_additions.get('updated'),extra_sensors.get('updated')) if value]
@@ -305,7 +312,8 @@ def build(root, output):
             previous=read(output/history_path)
             points=list(previous.get('values',[]))
             if kind=='temperature':
-                points+=archive_by_id.get(str(station['id']),[])
+                points=[p for p in points if accepted(station['id'],p)]
+                points += [p for p in archive_by_id.get(str(station['id']),[]) if accepted(station['id'],p)]
                 for values in station.get('history',{}).values():points+=values
                 points += [{'t':i.get('time'),'v':i.get('value')} for i in station.get('items',[])]
             else:
