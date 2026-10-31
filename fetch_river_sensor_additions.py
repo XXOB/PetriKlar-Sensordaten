@@ -1,8 +1,8 @@
 """Fetch additional official river gauges for the European water maps.
 
 Sources: Hydrographischer Dienst Kärnten/Steiermark, Hub'Eau (France), and ARPA Lombardia.
-Only measured water levels are imported. No reference levels or temperatures
-are inferred; in particular, ARPA air-temperature sensors are not water temps.
+Only measured water levels and water temperatures are imported. No reference
+levels or temperatures are inferred; ARPA air-temperature sensors are excluded.
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import time
 from html.parser import HTMLParser
+from zoneinfo import ZoneInfo
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,6 +27,7 @@ OUT = ROOT / 'assets/data/river-sensor-additions.json'
 GEOMETRY = ROOT / 'assets/data/temperature-rivers.geojson'
 UA = 'PetriKlar/1.0 (+https://www.petriklar.com)'
 HUB_BASE = 'https://hubeau.eaufrance.fr/api/v2/hydrometrie/'
+HUB_TEMPERATURE = 'https://hubeau.eaufrance.fr/api/v1/temperature/'
 KTN_URL = 'https://info.ktn.gv.at/asp/hydro/daten/json/hdkaernten_abfluss.json'
 STMK_BASE = 'https://egov.stmk.gv.at/at.gv.stmk.hydavis-p/pub/praesentation/index.xhtml'
 STMK_INFO = 'https://www.hydrografie.steiermark.at/cms/beitrag/12813605/142514764'
@@ -397,6 +399,90 @@ def france_levels(geojson: dict, now: float):
     return stations
 
 
+def france_temperatures(geojson: dict, now: float):
+    """Import only dated, observed Maas/Mosel water temperatures from Hub'Eau.
+
+    The station catalogue includes long-dormant thermometers. Catalogue presence
+    alone must never colour a river: stations without a recent reading get an
+    explicit unavailable item; the map applies its stricter freshness threshold.
+    """
+    routes = {river: lines_for(geojson, river) for river in ('Maas', 'Mosel')}
+    if not all(routes.values()):
+        raise RuntimeError('No mapped line for French Maas or Mosel')
+    catalogue = fetch_json(query_url(HUB_TEMPERATURE + 'station', {
+        'format': 'json', 'bbox': '5.0,47.7,7.8,50.2', 'size': 1000,
+    }))
+    if not isinstance(catalogue.get('data'), list):
+        raise RuntimeError('Hub\'Eau temperature catalogue missing')
+    candidates = {}
+    for row in catalogue['data']:
+        label = str(row.get('libelle_cours_eau') or '').strip().casefold()
+        river = {'la meuse': 'Maas', 'la moselle': 'Mosel'}.get(label)
+        code = str(row.get('code_station') or '').strip()
+        lon, lat = number(row.get('longitude')), number(row.get('latitude'))
+        if not river or not code or lon is None or lat is None:
+            continue
+        if distance_km(lon, lat, routes[river]) > 1.5:
+            continue
+        candidates[code] = {
+            'id': 'fr-hubeau-temp-' + code,
+            'name': row.get('libelle_station') or code,
+            'river': river, 'country': 'FR', 'src': 'fr-hubeau-temperature',
+            'lat': lat, 'lon': lon, 'params': {'wt': True},
+            'source_url': query_url(HUB_TEMPERATURE + 'chronique', {
+                'format': 'json', 'code_station': code, 'size': 1,
+            }),
+            'license': 'Licence Ouverte / Open Licence 2.0',
+            'license_url': 'https://www.etalab.gouv.fr/licence-ouverte-open-licence/',
+            'attribution': "Source : Hub'Eau / Naïades (OFB, BRGM)",
+        }
+    if not candidates:
+        raise RuntimeError('No mapped Hub\'Eau Maas/Mosel temperature stations')
+    begin = datetime.fromtimestamp(now - 8 * 86400, timezone.utc).date().isoformat()
+    readings = fetch_json(query_url(HUB_TEMPERATURE + 'chronique', {
+        'format': 'json', 'code_station': ','.join(sorted(candidates)),
+        'date_debut_mesure': begin, 'size': 5000,
+    }), timeout=45)
+    if not isinstance(readings.get('data'), list):
+        raise RuntimeError('Hub\'Eau temperature observations missing')
+    if readings.get('next'):
+        raise RuntimeError('Hub\'Eau temperature observations exceeded one page')
+    by_code = {code: [] for code in candidates}
+    for row in readings['data']:
+        code = str(row.get('code_station') or '').strip()
+        value = number(row.get('resultat'))
+        if code not in by_code or value is None or not -2 <= value <= 40:
+            continue
+        if row.get('symbole_unite') != '°C':
+            continue
+        try:
+            local = datetime.fromisoformat(
+                str(row['date_mesure_temp']) + 'T' + str(row['heure_mesure_temp'])
+            ).replace(tzinfo=ZoneInfo('Europe/Paris'))
+        except (KeyError, TypeError, ValueError):
+            continue
+        observed = local.isoformat()
+        if not now - 8 * 86400 <= stamp(observed) <= now + 900:
+            continue
+        by_code[code].append({'t': observed, 'v': value})
+    stations = []
+    for code, points in by_code.items():
+        history = hourly(points, now)
+        if not history:
+            stations.append({**candidates[code],
+                             'items': [{'label': 'Wassertemperatur', 'value': None,
+                                        'unit': '°C', 'time': None,
+                                        'quality': 'unavailable'}],
+                             'history': {}})
+            continue
+        current = history[-1]
+        stations.append({**candidates[code],
+                         'items': [{'label': 'Wassertemperatur', 'value': current['v'],
+                                    'unit': '°C', 'time': current['t']}],
+                         'history': {'Wassertemperatur': history}})
+    return stations, len(candidates)
+
+
 def arpa_levels(geojson: dict, now: float):
     # ARPA's map is a no-column visualization. Its public backing table is nf78-nj6b.
     meta = fetch_json(query_url(ARPA_META, {
@@ -464,6 +550,7 @@ def main():
     now = datetime.now(timezone.utc).timestamp()
     previous = read_json(OUT, {})
     old_levels = previous.get('level_stations', [])
+    old_temperatures = previous.get('temperature_stations', [])
     sources = {}
     errors = {}
     geojson = read_json(GEOMETRY, {})
@@ -488,6 +575,17 @@ def main():
         errors['fr-hubeau'] = str(exc)[:240]
         sources['fr-hubeau'] = [s for s in old_levels if s.get('src') == 'fr-hubeau']
     try:
+        french_temperatures, candidate_count = france_temperatures(geojson, now)
+        live_count = sum(s['items'][0]['value'] is not None for s in french_temperatures)
+        print('Hub’Eau Maas/Mosel Temperatur:', live_count,
+              'mit Messwert von', candidate_count, 'registrierten Stationen')
+    except Exception as exc:
+        errors['fr-hubeau-temperature'] = str(exc)[:240]
+        french_temperatures = [s for s in old_temperatures
+                               if s.get('src') == 'fr-hubeau-temperature']
+        candidate_count = None
+        live_count = sum(s['items'][0]['value'] is not None for s in french_temperatures)
+    try:
         sources['it-arpa-lombardia'] = arpa_levels(geojson, now)
         print('ARPA Lombardia Ticino-Pegel:', len(sources['it-arpa-lombardia']))
     except Exception as exc:
@@ -501,15 +599,20 @@ def main():
     report = {
         'updated': datetime.now(timezone.utc).isoformat(),
         'level_stations': list(merged.values()),
-        'temperature_stations': previous.get('temperature_stations', []),
+        'temperature_stations': [s for s in old_temperatures
+                                 if s.get('src') != 'fr-hubeau-temperature'] + french_temperatures,
         'source_report': {
             'at-ktn': {'count': len(sources['at-ktn']), 'url': KTN_URL},
             'at-stmk': {'count': len(sources['at-stmk']), 'url': STMK_BASE},
             'fr-hubeau': {'count': len(sources['fr-hubeau']), 'base_url': HUB_BASE},
+            'fr-hubeau-temperature': {'count': len(french_temperatures),
+                                      'live_count': live_count,
+                                      'candidate_count': candidate_count,
+                                      'base_url': HUB_TEMPERATURE},
             'it-arpa-lombardia': {'count': len(sources['it-arpa-lombardia']), 'dataset': ARPA_DATA},
         },
         'errors': errors,
-        'note': 'Es sind ausschließlich Pegelmessungen enthalten. Temperatur- und Normalwerte werden nicht aus anderen Größen abgeleitet.',
+        'note': 'Nur gemessene Pegel und Wassertemperaturen. Keine Temperatur oder Normalwerte aus anderen Größen abgeleitet.',
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     temp = OUT.with_suffix('.tmp')

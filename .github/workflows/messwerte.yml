@@ -187,8 +187,9 @@ jobs:
           }
 
       # Drau/Mur (Kaernten, Steiermark), Maas/Mosel/Rhone (Hub'Eau) und Ticino
-      # (ARPA Lombardia). Lief frueher nur im Website-Repository.
-      - name: Mur-, Drau-, Maas-, Mosel-, Rhone- und Ticino-Pegel abrufen
+      # (ARPA Lombardia). Hub'Eau liefert zusaetzlich den Katalog der
+      # Maas/Mosel-Thermometer; nur aktuelle Messungen faerben den Fluss.
+      - name: Zusatz-Pegel und franzoesische Maas/Mosel-Temperaturen abrufen
         if: always()
         timeout-minutes: 8
         run: |

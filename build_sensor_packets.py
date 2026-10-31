@@ -229,7 +229,8 @@ def build(root, output):
     # Dieselbe Station kann in beiden Laeufen stehen; die Laeufe starten zu
     # verschiedenen Minuten. Es gewinnt der juengere Messwert, nicht die
     # zuletzt gelesene Datei.
-    for station in europe.get('stations',[])+extra_sensors.get('temperature_stations',[]):
+    for station in (europe.get('stations',[])+extra_sensors.get('temperature_stations',[])
+                    +river_additions.get('temperature_stations',[])):
         station=dict(station)
         if station.get('country')=='NL' and not station.get('river'):
             station['river']=nl_waters.get(station.get('name',''), '')
