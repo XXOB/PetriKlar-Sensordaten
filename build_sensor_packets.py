@@ -79,6 +79,9 @@ def build(root, output):
     # its downloadable hourly CSV can lag behind. The updater stores only the
     # explicitly printed latest value, never a value inferred from the graph.
     brandenburg_snapshot=read(root/'assets/data/lfu-brandenburg-current.json')
+    # The UK collector publishes its own source file. It must be part of the
+    # canonical packet BEFORE first paint, not only a later browser-side merge.
+    uk_temperature=read(root/'assets/data/uk-river-temperatures.json')
     # Die Nachbarnetze holen eigene Laeufe (Messwerte AT/CH/NL). Ohne sie
     # fehlen dem Paket die Stationen von Land Tirol, Vorarlberg, BAFU und
     # Rijkswaterstaat, und jede Karte muesste sie im Browser nachladen.
@@ -143,7 +146,7 @@ def build(root, output):
         return {**metadata,'items':list(by_label.values()),
                 'history':{k:sorted(v.values(),key=lambda p:stamp_of(p['t'])) for k,v in history.items()}}
     rows={}
-    for snapshot in (extra,water,niz,brandenburg_snapshot):
+    for snapshot in (extra,water,niz,brandenburg_snapshot,uk_temperature):
         for station in snapshot.get('stations',[]):
             key=str(station.get('id') or '')
             if key: rows[key]=merge_temperature_rows(rows[key],station) if key in rows else station
@@ -281,7 +284,8 @@ def build(root, output):
                                           for s in archive.get('stations',[])]}
     update_candidates=[(stamp_of(value),value) for value in
         (water.get('updated'),niz.get('updated'),brandenburg_snapshot.get('updated'),europe.get('updated'),
-         europe_levels.get('updated'),river_additions.get('updated'),extra_sensors.get('updated')) if value]
+         europe_levels.get('updated'),river_additions.get('updated'),extra_sensors.get('updated'),
+         uk_temperature.get('updated')) if value]
     latest_update=max(update_candidates,default=(0,water.get('updated')),key=lambda item:item[0])[1]
     # The river geometry, not a second hard-coded name list, decides which
     # readings can colour a line. Keep every thermometer in the packet so the
