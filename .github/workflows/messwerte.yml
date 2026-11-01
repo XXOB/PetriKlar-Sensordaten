@@ -1,10 +1,9 @@
 # Alle vier Laender in einem Lauf.
 #
-# Vorher lagen DE, AT, CH und NL in vier getrennten Workflows mit eigenem
-# Cron. GitHub drosselt geplante Laeufe pro Repository: die vier liefen
-# tatsaechlich nur alle vier bis sechs Stunden und zu verschiedenen Zeiten.
-# Damit lagen die Laender-Messwerte regelmaessig Stunden auseinander, und das
-# Vier-Stunden-Fenster der Flussprofile behielt nur ein Land uebrig.
+# Einziger Datenabruf. Netcup darf per workflow_dispatch nur den Start ausloesen;
+# es sammelt und speichert keine Messdaten. GitHub-Cron bleibt ein Backup, da
+# schedule-Ereignisse laut GitHub verspaetet eintreffen oder ausfallen koennen.
+# Concurrency plus die 50-Minuten-Sperre verhindern doppelte Behoerdenabrufe.
 #
 # Reihenfolge und Fehlertoleranz sind bewusst gewaehlt:
 #   1. leichte Abhaengigkeiten, dann AT, CH, NL - wenige Minuten, kein Browser
@@ -19,8 +18,13 @@ name: Messwerte
 
 on:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "47 * * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Ausnahmsweise trotz eines kuerzlich erfolgreichen Abrufs starten"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -32,7 +36,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    name: Doppelabruf verhindern
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      collect: ${{ steps.gate.outputs.collect }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - id: gate
+        env:
+          PETRI_FORCE: ${{ github.event.inputs.force || 'false' }}
+        run: python3 collection_control.py gate
+
   update:
+    needs: gate
+    if: needs.gate.outputs.collect == 'true'
     name: Amtliche Messwerte abrufen
     # Fest auf 24.04: Seit der Umstellung von ubuntu-latest auf Ubuntu 26
     # (ab 19.10.2026) lehnen mehrere Behoerdenserver die Abrufe ab.
@@ -54,6 +75,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Tatsaechlichen Abrufbeginn dokumentieren
+        run: python collection_control.py start
 
       # Bewusst getrennt: die drei schnellen Laender brauchen keinen Browser
       # und sollen nicht an einer fehlgeschlagenen Chromium-Installation
@@ -221,7 +245,11 @@ jobs:
 
       - name: Daten speichern
         if: always()
+        env:
+          COLLECTION_RESULT: ${{ job.status }}
         run: |
+          python collection_control.py finish --result "$COLLECTION_RESULT"
+          git add collection-status.json
           for file in wasserwerte.json wassertemperatur_verlauf.json pegelkarte.json niz_temperature.json \
                       pegel-tageswerte.json temperatur_zusatz.json gkd_coords.json nlwkn_coords.json \
                       undine_coords.json berlin_coords.json assets/data/lfu-brandenburg-current.json assets/data/extra-sensors.json \

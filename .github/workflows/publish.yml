@@ -6,6 +6,8 @@ on:
       - .github/workflows/publish.yml
       - build_sensor_packets.py
       - temperature_plausibility.py
+      - collection_control.py
+      - country_pipeline.py
   workflow_run:
     workflows: [Messwerte, Pegelhistorie ergänzen, Temperaturarchiv nachtragen]
     types: [completed]
@@ -20,6 +22,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   update:
+    outputs:
+      ready: ${{ steps.publish_check.outputs.ready }}
     # Fest auf 24.04: Seit der Umstellung von ubuntu-latest auf Ubuntu 26
     # (ab 19.10.2026) lehnen mehrere Behoerdenserver die Abrufe ab.
     runs-on: ubuntu-24.04
@@ -28,15 +32,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+      - name: Nur echte Aenderungen veroeffentlichen
+        id: publish_check
+        run: python3 collection_control.py publish-check
       - uses: actions/setup-python@v5
+        if: steps.publish_check.outputs.ready == 'true'
         with:
           python-version: "3.12"
       - run: python country_pipeline.py publish
+        if: steps.publish_check.outputs.ready == 'true'
       - run: python build_sensor_packets.py --root . --output packets
+        if: steps.publish_check.outputs.ready == 'true'
       - name: Öffentlichen Datenordner erzeugen
+        if: steps.publish_check.outputs.ready == 'true'
         run: |
           mkdir -p _site
           cp wasserwerte.json _site/
+          [ ! -f collection-status.json ] || cp collection-status.json _site/
           # Metadata and already-public readings for the password-protected
           # Netcup admin audit. No additional authority request occurs here.
           cp niz_temperature.json _site/
@@ -58,14 +70,17 @@ jobs:
           EOF
 
       - name: GitHub Pages konfigurieren
+        if: steps.publish_check.outputs.ready == 'true'
         uses: actions/configure-pages@v5
 
       - name: Daten als Pages-Artefakt packen
+        if: steps.publish_check.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
   deploy:
+    if: needs.update.outputs.ready == 'true'
     name: Datendateien veröffentlichen
     needs: update
     runs-on: ubuntu-24.04

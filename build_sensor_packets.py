@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from temperature_plausibility import screen as screen_temperatures, timestamp as temperature_timestamp
+from collection_control import measurement_health
 
 
 def read(path):
@@ -35,7 +36,8 @@ def current_temperature_packet(stations, updated, generated_at):
     return {'data': {'stations': [{k: v for k, v in station.items() if k != 'history'}
                                   for station in stations]},
             'archive': None, 'updated': updated, 'generated_at': generated_at,
-            'initialOnly': True}
+            'initialOnly': True,
+            'measurement_status': measurement_health(stations, 'temperature', datetime.now(timezone.utc).timestamp())}
 
 
 def current_level_packet(levels, generated_at):
@@ -44,7 +46,8 @@ def current_level_packet(levels, generated_at):
                if k in ('schema', 'fetched_at', 'source_url')},
             'stations': [{k: v for k, v in station.items() if k != 'history'}
                          for station in levels.get('stations', [])],
-            'generated_at': generated_at, 'initialOnly': True}
+            'generated_at': generated_at, 'initialOnly': True,
+            'measurement_status': measurement_health(levels.get('stations', []), 'level', datetime.now(timezone.utc).timestamp())}
 
 
 def retain(points, now):
@@ -295,6 +298,11 @@ def build(root, output):
             return value
     write(output/'level-map.json',{**{k:v for k,v in levels.items() if k in ('schema','fetched_at','source_url')},'packed_history':True,'stations':[{**s,'history':[[compact_time(p['t']),p['v']] for p in recent(s.get('history',[]))]} for s in levels.get('stations',[])]})
     write(output/'level-map-current.json',current_level_packet(levels,generated_at))
+    # Publication, collection and measurement clocks are deliberately separate.
+    collection=read(root/'collection-status.json')
+    write(output/'data-health.json',{'schema':1,'generated_at':generated_at,'collection':collection,
+        'temperature':measurement_health(temperatures,'temperature',now),
+        'level':measurement_health(levels.get('stations',[]),'level',now)})
     # Monatsverlauf der Pegel getrennt ablegen: die Wochenkarte bleibt klein,
     # die 30-Tage-Ansicht laedt diese Datei nur bei Bedarf.
     write(output/'level-history.json',{'fetched_at':levels.get('fetched_at'),'packed_history':True,

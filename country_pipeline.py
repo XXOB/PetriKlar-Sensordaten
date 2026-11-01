@@ -5,6 +5,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from collection_control import source_updated_at
 
 ROOT = Path(__file__).resolve().parent
 
@@ -50,7 +51,11 @@ def combine(payloads):
             if level and not row.get('history_baseline') and archived and archived.get('unit') == level.get('unit') and datum_matches:
                 row['history_baseline'] = archived
             rows[row['id']] = row
-    return {'updated': now.isoformat(), 'stations': list(rows.values()), 'source_report': report}
+    # Combining stored histories is not a new authority request. In particular,
+    # the history/publish workflows must not refresh the current-data clock.
+    updated = source_updated_at(payloads)
+    return {'updated': updated, 'source_updated_at': updated, 'generated_at': now.isoformat(),
+            'stations': list(rows.values()), 'source_report': report}
 
 
 def write(path, payload):
