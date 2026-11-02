@@ -67,6 +67,35 @@ class FrenchLevelReferenceTests(unittest.TestCase):
         self.assertEqual(packet['stations'][0]['reference_band'], band)
         self.assertNotIn('history', packet['stations'][0])
 
+    def test_one_timed_out_hubeau_batch_keeps_older_stations(self):
+        rivers = ('Maas', 'Mosel', 'Rhône')
+        geometry = {'features': [
+            {'properties': {'name': river},
+             'geometry': {'type': 'LineString',
+                          'coordinates': [[5.0 + index, 48.0], [5.2 + index, 48.0]]}}
+            for index, river in enumerate(rivers)]}
+        old = []
+        def sites(label):
+            index = ('La Meuse', 'La Moselle', 'Le Rhône').index(label)
+            river = rivers[index]
+            records = []
+            for number in range(4):
+                code = f'{river}-{number}'
+                records.append({'code_site': code, 'statut_site': 1,
+                                'longitude_site': 5.1 + index, 'latitude_site': 48.0})
+                old.append({'id': code, 'src': 'fr-hubeau', 'river': river,
+                            'current': {'t': '2026-11-02T11:00:00Z', 'v': 100}})
+            return {'data': records}
+        with patch.object(feeds, 'hubeau_sites', side_effect=sites), \
+             patch.object(feeds, 'fetch_json', side_effect=TimeoutError('temporary')), \
+             patch.object(feeds, 'attach_french_reference_bands'):
+            # Build the old catalogue first; the feed itself is unavailable.
+            for label in ('La Meuse', 'La Moselle', 'Le Rhône'):
+                sites(label)
+            result = feeds.france_levels(geometry, NOW, old)
+        self.assertEqual(len(result), 12)
+        self.assertEqual({s['river'] for s in result}, set(rivers))
+
 
 if __name__ == '__main__':
     unittest.main()
