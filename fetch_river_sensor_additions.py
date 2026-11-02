@@ -1,14 +1,17 @@
 """Fetch additional official river gauges for the European water maps.
 
 Sources: Hydrographischer Dienst Kärnten/Steiermark, Hub'Eau (France), and ARPA Lombardia.
-Only measured water levels and water temperatures are imported. No reference
-levels or temperatures are inferred; ARPA air-temperature sensors are excluded.
+Only measured water levels and water temperatures are imported. French relative
+level colours use a derived 30-day comparison, never labelled official mean
+water. No temperatures are inferred; ARPA air-temperature sensors are excluded.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import math
+import statistics
 from pathlib import Path
 import re
 import time
@@ -328,14 +331,104 @@ def hubeau_sites(label: str):
         'format': 'json', 'size': 1000, 'libelle_cours_eau': label}))
 
 
-def france_levels(geojson: dict, now: float):
+def quantile(values: list[float], fraction: float) -> float:
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    return ordered[lower] + (ordered[min(lower + 1, len(ordered) - 1)] - ordered[lower]) * (position - lower)
+
+
+def french_reference_band(code: str, now: float):
+    """Recent, station-relative H range; never advertised as official mean water."""
+    start = datetime.fromtimestamp(now - 30 * 86400, timezone.utc).date().isoformat()
+    url = query_url(HUB_BASE + 'observations_tr', {
+        'format': 'json', 'size': 10000, 'sort': 'desc',
+        'code_entite': code, 'grandeur_hydro': 'H', 'date_debut': start,
+    })
+    payload = fetch_json(url, timeout=30)
+    if payload.get('next'):
+        return None  # An incomplete page must not silently bias a percentile.
+    rows = payload.get('data', [])
+    if not rows:
+        return None
+    # A site can contain multiple physical gauges or vertical datums. Never
+    # mix their raw H readings into one relative reference range.
+    latest = max(rows, key=lambda row: stamp(row.get('date_obs')))
+    gauge = latest.get('code_station')
+    datum = latest.get('code_systeme_alti_serie')
+    daily = {}
+    for row in rows:
+        if (str(row.get('code_site') or '') != code or
+                row.get('code_station') != gauge or
+                row.get('code_systeme_alti_serie') != datum):
+            continue
+        value, observed = number(row.get('resultat_obs')), row.get('date_obs')
+        when = stamp(observed)
+        if value is None or not observed or not now - 30 * 86400 <= when <= now + 900:
+            continue
+        if abs(value) > 100000:  # Malformed millimetre readings, not legitimate H.
+            continue
+        daily.setdefault(datetime.fromtimestamp(when, timezone.utc).date().isoformat(), []).append(value / 10)
+    qualified = {day: statistics.median(values) for day, values in daily.items() if len(values) >= 4}
+    medians = list(qualified.values())
+    if len(medians) < 21:
+        return None
+    low, center, high = (quantile(medians, q) for q in (0.1, 0.5, 0.9))
+    if not low < center < high:
+        return None
+    return {
+        'method': 'fr-hubeau-recent-30d-daily-median-p10-p50-p90',
+        'low': round(low, 3), 'center': round(center, 3), 'high': round(high, 3),
+        'unit': 'cm', 'days': len(medians), 'start': min(qualified), 'end': max(qualified),
+        'code_station': gauge, 'code_systeme_alti_serie': datum,
+        'fetched_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        'source_url': url,
+    }
+
+
+def attach_french_reference_bands(stations: list, previous_levels: list, now: float):
+    previous = {str(row.get('id')): row for row in previous_levels if row.get('src') == 'fr-hubeau'}
+    pending = []
+    for station in stations:
+        old = previous.get(station['id'], {}).get('reference_band')
+        age = now - stamp(old.get('fetched_at')) if isinstance(old, dict) else float('inf')
+        same_gauge = (old and old.get('code_station') == station.get('code_station') and
+                      old.get('code_systeme_alti_serie') == station.get('code_systeme_alti_serie'))
+        if same_gauge and 0 <= age < 7 * 86400:
+            station['reference_band'] = old
+        if not same_gauge or age >= 20 * 3600:
+            pending.append(station)
+    if not pending:
+        return
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = {pool.submit(french_reference_band, station['id'], now): station for station in pending}
+        for future in as_completed(futures):
+            station = futures[future]
+            try:
+                band = future.result()
+                if (band and band.get('code_station') == station.get('code_station') and
+                        band.get('code_systeme_alti_serie') == station.get('code_systeme_alti_serie')):
+                    station['reference_band'] = band
+            except Exception as exc:
+                print(f"::warning::Hub'Eau Pegelvergleich {station['id']}: {str(exc)[:120]}")
+
+
+def france_levels(geojson: dict, now: float, previous_levels: list | None = None):
     sources = [('Maas', 'La Meuse'), ('Mosel', 'La Moselle'), ('Rhône', 'Le Rhône')]
+    previous_by_id = {str(row.get('id')): row for row in (previous_levels or [])
+                      if row.get('src') == 'fr-hubeau'}
     grouped = {}
     for river, label in sources:
         route = lines_for(geojson, river)
         if not route:
             raise RuntimeError(f'No mapped line for {river}')
-        data = hubeau_sites(label)
+        try:
+            data = hubeau_sites(label)
+        except Exception as exc:
+            print(f"::warning::Hub'Eau Stationsinventar {river}: {str(exc)[:120]}")
+            grouped[river] = {code: row.copy() for code, row in previous_by_id.items()
+                              if row.get('river') == river}
+            continue
         for site in data.get('data', []):
             if site.get('statut_site') not in (1, '1'):
                 continue
@@ -349,7 +442,7 @@ def france_levels(geojson: dict, now: float):
                 'lat': lat, 'lon': lon, 'unit': 'cm', 'code_site': code,
             }
     stations = []
-    date_start = (datetime.now(timezone.utc) - timedelta(days=2)).date().isoformat()
+    date_start = (datetime.fromtimestamp(now, timezone.utc) - timedelta(days=2)).date().isoformat()
     for river, sites in grouped.items():
         codes = list(sites)
         for start in range(0, len(codes), 4):
@@ -359,8 +452,14 @@ def france_levels(geojson: dict, now: float):
                 'code_entite': ','.join(batch), 'grandeur_hydro': 'H',
                 'date_debut': date_start,
             })
-            payload = fetch_json(query, timeout=40)
+            try:
+                payload = fetch_json(query, timeout=40)
+            except Exception as exc:
+                print(f"::warning::Hub'Eau Pegelbatch {river}: {str(exc)[:120]}")
+                stations.extend(previous_by_id[code].copy() for code in batch if code in previous_by_id)
+                continue
             grouped_points = {code: [] for code in batch}
+            grouped_meta = {}
             for row in payload.get('data', []):
                 code = str(row.get('code_site') or '')
                 value = number(row.get('resultat_obs'))
@@ -371,18 +470,27 @@ def france_levels(geojson: dict, now: float):
                     continue
                 # Hub'Eau H readings are mm; convert to cm for a uniform map unit.
                 grouped_points[code].append({'t': observed, 'v': value / 10.0})
+                if code not in grouped_meta or stamp(observed) > grouped_meta[code][0]:
+                    grouped_meta[code] = (stamp(observed), row.get('code_station'),
+                                          row.get('code_systeme_alti_serie'))
             for code in batch:
                 points = grouped_points[code]
                 if not points:
+                    if code in previous_by_id:
+                        stations.append(previous_by_id[code].copy())
                     continue
                 points.sort(key=lambda x: stamp(x['t']))
                 history = hourly(points, now)
                 if not history:
+                    if code in previous_by_id:
+                        stations.append(previous_by_id[code].copy())
                     continue
                 station = sites[code]
                 current = max(points, key=lambda x: stamp(x['t']))
+                _, gauge, datum = grouped_meta[code]
                 station.update({
                     'current': current, 'history': history,
+                    'code_station': gauge, 'code_systeme_alti_serie': datum,
                     'items': [{'label': 'Pegelstand', 'value': current['v'], 'unit': 'cm', 'time': current['t']}],
                     'source_url': query_url(HUB_BASE + 'observations_tr', {
                         'format': 'json', 'size': 1, 'code_entite': code,
@@ -396,6 +504,7 @@ def france_levels(geojson: dict, now: float):
             time.sleep(0.15)
     if len(stations) < 12:
         raise RuntimeError(f"Hub'Eau returned only {len(stations)} current French river gauges")
+    attach_french_reference_bands(stations, previous_levels or [], now)
     return stations
 
 
@@ -569,8 +678,10 @@ def main():
         errors['at-stmk'] = str(exc)[:240]
         sources['at-stmk'] = [s for s in old_levels if s.get('src') == 'at-stmk']
     try:
-        sources['fr-hubeau'] = france_levels(geojson, now)
-        print('Hub’Eau Maas/Mosel/Rhône Pegel:', len(sources['fr-hubeau']))
+        sources['fr-hubeau'] = france_levels(geojson, now, old_levels)
+        print('Hub’Eau Maas/Mosel/Rhône Pegel:', len(sources['fr-hubeau']),
+              'davon mit 30-Tage-Vergleich:',
+              sum(bool(s.get('reference_band')) for s in sources['fr-hubeau']))
     except Exception as exc:
         errors['fr-hubeau'] = str(exc)[:240]
         sources['fr-hubeau'] = [s for s in old_levels if s.get('src') == 'fr-hubeau']
@@ -604,7 +715,10 @@ def main():
         'source_report': {
             'at-ktn': {'count': len(sources['at-ktn']), 'url': KTN_URL},
             'at-stmk': {'count': len(sources['at-stmk']), 'url': STMK_BASE},
-            'fr-hubeau': {'count': len(sources['fr-hubeau']), 'base_url': HUB_BASE},
+            'fr-hubeau': {'count': len(sources['fr-hubeau']),
+                          'reference_band_count': sum(bool(s.get('reference_band'))
+                                                      for s in sources['fr-hubeau']),
+                          'base_url': HUB_BASE},
             'fr-hubeau-temperature': {'count': len(french_temperatures),
                                       'live_count': live_count,
                                       'candidate_count': candidate_count,
@@ -612,7 +726,7 @@ def main():
             'it-arpa-lombardia': {'count': len(sources['it-arpa-lombardia']), 'dataset': ARPA_DATA},
         },
         'errors': errors,
-        'note': 'Nur gemessene Pegel und Wassertemperaturen. Keine Temperatur oder Normalwerte aus anderen Größen abgeleitet.',
+        'note': 'Nur gemessene Pegel und Wassertemperaturen. Französische Pegelvergleiche stammen aus 30 Tagen eigener Stationsmessungen; kein amtliches Mittelwasser.',
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     temp = OUT.with_suffix('.tmp')
