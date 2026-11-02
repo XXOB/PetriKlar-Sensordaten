@@ -66,7 +66,7 @@ FALLBACK_HOSTS = frozenset({
     "geo.rijkswaterstaat.nl",
     "rijkswaterstaatdata.nl", "waterinfo.rws.nl",
     # Nachbarlaender, Mur und Donau
-    "opendata.chmi.cz", "danepubliczne.imgw.pl", "hubeau.eaufrance.fr", "www.dati.lombardia.it",
+    "opendata.chmi.cz", "danepubliczne.imgw.pl", "hubeau.eaufrance.fr", "www.hydro.eaufrance.fr", "www.dati.lombardia.it",
     "www.hidmet.gov.rs", "hidro.dhz.hr", "appd-bg.org", "www.arso.gov.si", "vode.arso.gov.si",
 })
 BLOCK_STATUS = frozenset({403, 429, 451, 500, 502, 503, 504})

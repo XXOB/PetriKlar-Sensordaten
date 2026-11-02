@@ -48,7 +48,7 @@ const RELAY_HOSTS = [
     'ddapi20-waterwebservices.rijkswaterstaat.nl', 'geo.rijkswaterstaat.nl',
     'rijkswaterstaatdata.nl', 'waterinfo.rws.nl',
     // Nachbarlaender, Mur und Donau ausserhalb DE/AT
-    'opendata.chmi.cz', 'danepubliczne.imgw.pl', 'hubeau.eaufrance.fr', 'www.dati.lombardia.it',
+    'opendata.chmi.cz', 'danepubliczne.imgw.pl', 'hubeau.eaufrance.fr', 'www.hydro.eaufrance.fr', 'www.dati.lombardia.it',
     'afdj.ro', 'www.hidmet.gov.rs', 'hidro.dhz.hr', 'appd-bg.org',
     'www.arso.gov.si', 'vode.arso.gov.si',
 ];

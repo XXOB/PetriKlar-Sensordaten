@@ -213,12 +213,13 @@ jobs:
       # Drau/Mur (Kaernten, Steiermark), Maas/Mosel/Rhone (Hub'Eau) und Ticino
       # (ARPA Lombardia). Hub'Eau liefert zusaetzlich den Katalog der
       # Maas/Mosel-Thermometer; nur aktuelle Messungen faerben den Fluss.
-      # Einmal taeglich wird der stationsbezogene 30-Tage-Pegelvergleich
-      # erneuert; die erste Befuellung kann mehrere Minuten dauern.
+      # Monatlich wird der mehrjaehrige stationsbezogene Pegelvergleich aus
+      # amtlichen historischen H-Tagesmedianen erneuert; kein Mittelwasser.
       - name: Zusatz-Pegel und franzoesische Maas/Mosel-Temperaturen abrufen
         if: always()
-        timeout-minutes: 12
+        timeout-minutes: 25
         run: |
+          python -m unittest discover -s tests -p 'test_french_level_references.py' -v
           python fetch_river_sensor_additions.py || {
             echo "::warning::Zusatz-Pegel nicht vollstaendig aktualisiert; letzter Stand bleibt erhalten."
             test -s assets/data/river-sensor-additions.json

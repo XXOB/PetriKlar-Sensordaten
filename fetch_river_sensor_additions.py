@@ -2,8 +2,9 @@
 
 Sources: Hydrographischer Dienst Kärnten/Steiermark, Hub'Eau (France), and ARPA Lombardia.
 Only measured water levels and water temperatures are imported. French relative
-level colours use a derived 30-day comparison, never labelled official mean
-water. No temperatures are inferred; ARPA air-temperature sensors are excluded.
+level colours use at least 300 daily medians of official historic H readings from
+the same gauge and vertical datum, never labelled official mean water. No
+temperatures are inferred; ARPA air-temperature sensors are excluded.
 """
 from __future__ import annotations
 
@@ -338,85 +339,131 @@ def quantile(values: list[float], fraction: float) -> float:
     return ordered[lower] + (ordered[min(lower + 1, len(ordered) - 1)] - ordered[lower]) * (position - lower)
 
 
-def french_reference_band(code: str, now: float):
-    """Recent, station-relative H range; never advertised as official mean water."""
-    start = datetime.fromtimestamp(now - 30 * 86400, timezone.utc).date().isoformat()
-    url = query_url(HUB_BASE + 'observations_tr', {
-        'format': 'json', 'size': 5000, 'sort': 'desc',
-        'code_entite': code, 'grandeur_hydro': 'H', 'date_debut': start,
-    })
-    rows = []
-    page_url = url
-    for _ in range(12):
-        payload = fetch_json(page_url, timeout=30)
-        rows.extend(payload.get('data', []))
-        page_url = payload.get('next')
-        if not page_url:
-            break
-    if page_url:
-        return None  # An incomplete series must not bias a percentile.
-    if not rows:
+def french_history_baseline(station: dict, now: float):
+    """Three years of official instantaneous H, reduced to daily medians.
+
+    Hub'Eau offers only the latest 30 days of instantaneous H. HydroPortail's
+    public station-series endpoint offers the complete historical readings.
+    Never merge another physical station or a former gauge zero: the station
+    metadata's datum activation date bounds the window. Missing metadata
+    makes the gauge ineligible; this is not official mean water.
+    """
+    gauge = station.get('code_station')
+    datum = station.get('code_systeme_alti_serie')
+    if not gauge or datum is None:
         return None
-    # A site can contain multiple physical gauges or vertical datums. Never
-    # mix their raw H readings into one relative reference range.
-    latest = max(rows, key=lambda row: stamp(row.get('date_obs')))
-    gauge = latest.get('code_station')
-    datum = latest.get('code_systeme_alti_serie')
+    meta_url = query_url(HUB_BASE + 'referentiel/stations', {'code_station': gauge, 'size': 1})
+    metadata = fetch_json(meta_url, timeout=30).get('data') or []
+    if len(metadata) != 1 or metadata[0].get('code_station') != gauge:
+        return None
+    activated = metadata[0].get('date_activation_ref_alti_station')
+    if not activated:
+        return None
+    activated_day = activated[:10]
+    start_day = datetime.fromtimestamp(now - 3 * 365 * 86400, timezone.utc).date().isoformat()
+    start_day = max(start_day, activated_day)
+    end_day = datetime.fromtimestamp(now - 86400, timezone.utc).date().isoformat()
+    if (datetime.fromisoformat(end_day) - datetime.fromisoformat(start_day)).days < 300:
+        return None
+    url = query_url(f'https://www.hydro.eaufrance.fr/stationhydro/ajax/{gauge}/series', {
+        'hydro_series[startAt]': datetime.fromisoformat(start_day).strftime('%d/%m/%Y'),
+        'hydro_series[endAt]': datetime.fromisoformat(end_day).strftime('%d/%m/%Y'),
+        'hydro_series[variableType]': 'simple_and_interpolated_and_hourly_variable',
+        'hydro_series[simpleAndInterpolatedAndHourlyVariable]': 'H',
+        'hydro_series[dailyVariable]': 'HIXnJ',
+        'hydro_series[monthlyVariable]': 'HIXM',
+        'hydro_series[statusData]': 'pre_validated_and_validated',
+    })
+    request = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (compatible; PetriKlar/1.0)',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest',
+    })
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(request, timeout=50) as response:
+                payload = json.loads(response.read(60_000_001).decode('utf-8'))
+            break
+        except (OSError, ValueError):
+            if attempt:
+                raise
+            time.sleep(2)
+    series = payload.get('series') or {}
+    if (series.get('code') != gauge or series.get('metric') != 'H' or
+            series.get('unit') != 'mm' or
+            series.get('statuses') != 'pre_validated_and_validated'):
+        return None
+    rows = series.get('data') or []
+    if len(rows) >= 500000:  # HydroPortail's export ceiling; series may be truncated.
+        return None
     daily = {}
     for row in rows:
-        if (str(row.get('code_site') or '') != code or
-                row.get('code_station') != gauge or
-                row.get('code_systeme_alti_serie') != datum):
+        observed = row.get('t')
+        day = observed[:10] if isinstance(observed, str) else None
+        value = number(row.get('v'))
+        if (not day or not start_day <= day <= end_day or value is None
+                or abs(value) > 100000 or row.get('q') != 20
+                or row.get('s') not in (12, 16)):
             continue
-        value, observed = number(row.get('resultat_obs')), row.get('date_obs')
-        when = stamp(observed)
-        if value is None or not observed or not now - 30 * 86400 <= when <= now + 900:
-            continue
-        if abs(value) > 100000:  # Malformed millimetre readings, not legitimate H.
-            continue
-        daily.setdefault(datetime.fromtimestamp(when, timezone.utc).date().isoformat(), []).append(value / 10)
-    qualified = {day: statistics.median(values) for day, values in daily.items() if len(values) >= 4}
-    medians = list(qualified.values())
-    if len(medians) < 21:
+        daily.setdefault(day, []).append(value / 10.0)
+    # The same daily-median fallback used for other countries: one actual
+    # reading is enough for a day; never invent interpolated observations.
+    medians = {day: statistics.median(values) for day, values in daily.items()}
+    dates = sorted(medians)
+    segments = []
+    for day in dates:
+        if (not segments or
+                (datetime.fromisoformat(day) - datetime.fromisoformat(segments[-1][-1])).days > 30):
+            segments.append([])
+        segments[-1].append(day)
+    qualified = [segment for segment in segments if len(segment) >= 300 and
+                 (datetime.fromisoformat(segment[-1]) - datetime.fromisoformat(segment[0])).days >= 330]
+    if not qualified:
         return None
-    low, center, high = (quantile(medians, q) for q in (0.1, 0.5, 0.9))
+    selected = max(qualified, key=lambda segment: (segment[-1], len(segment)))
+    medians = {day: medians[day] for day in selected}
+    low, center, high = (quantile(list(medians.values()), q) for q in (0.1, 0.5, 0.9))
     if not low < center < high:
         return None
     return {
-        'method': 'fr-hubeau-recent-30d-daily-median-p10-p50-p90',
+        'method': 'fr-hydroportail-daily-median-p10-p50-p90',
         'low': round(low, 3), 'center': round(center, 3), 'high': round(high, 3),
-        'unit': 'cm', 'days': len(medians), 'start': min(qualified), 'end': max(qualified),
+        'unit': 'cm', 'days': len(medians), 'start': min(medians), 'end': max(medians),
         'code_station': gauge, 'code_systeme_alti_serie': datum,
+        'datum_activated': activated_day,
         'fetched_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
-        'source_url': url,
+        'source': 'HydroPortail', 'source_url': url,
     }
 
 
-def attach_french_reference_bands(stations: list, previous_levels: list, now: float):
+def attach_french_history_baselines(stations: list, previous_levels: list, now: float):
     previous = {str(row.get('id')): row for row in previous_levels if row.get('src') == 'fr-hubeau'}
     pending = []
     for station in stations:
-        old = previous.get(station['id'], {}).get('reference_band')
-        age = now - stamp(old.get('fetched_at')) if isinstance(old, dict) else float('inf')
-        same_gauge = (old and old.get('code_station') == station.get('code_station') and
-                      old.get('code_systeme_alti_serie') == station.get('code_systeme_alti_serie'))
-        if same_gauge and 0 <= age < 7 * 86400:
-            station['reference_band'] = old
-        if not same_gauge or age >= 20 * 3600:
+        station.pop('reference_band', None)  # Retire the old 30-day comparison.
+        old = previous.get(station['id'], {}).get('history_baseline')
+        valid = (isinstance(old, dict) and
+                 old.get('method') == 'fr-hydroportail-daily-median-p10-p50-p90' and
+                 old.get('code_station') == station.get('code_station') and
+                 old.get('code_systeme_alti_serie') == station.get('code_systeme_alti_serie') and
+                 old.get('unit') == 'cm' and old.get('days', 0) >= 300)
+        age = now - stamp(old.get('fetched_at')) if valid else float('inf')
+        if valid and 0 <= age < 90 * 86400:
+            station['history_baseline'] = old
+        if not valid or age >= 30 * 86400:
             pending.append(station)
-    if not pending:
-        return
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        futures = {pool.submit(french_reference_band, station['id'], now): station for station in pending}
+    # HydroPortail closes some connections under a six-request burst. This
+    # reference is renewed only monthly, so two concurrent series suffice.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {pool.submit(french_history_baseline, station, now): station for station in pending}
         for future in as_completed(futures):
             station = futures[future]
             try:
-                band = future.result()
-                if (band and band.get('code_station') == station.get('code_station') and
-                        band.get('code_systeme_alti_serie') == station.get('code_systeme_alti_serie')):
-                    station['reference_band'] = band
+                baseline = future.result()
+                if baseline:
+                    station['history_baseline'] = baseline
             except Exception as exc:
-                print(f"::warning::Hub'Eau Pegelvergleich {station['id']}: {str(exc)[:120]}")
+                print(f"::warning::Hub'Eau historical H {station['id']}: {str(exc)[:120]}")
 
 
 def france_levels(geojson: dict, now: float, previous_levels: list | None = None):
@@ -510,7 +557,7 @@ def france_levels(geojson: dict, now: float, previous_levels: list | None = None
             time.sleep(0.15)
     if len(stations) < 12:
         raise RuntimeError(f"Hub'Eau returned only {len(stations)} current French river gauges")
-    attach_french_reference_bands(stations, previous_levels or [], now)
+    attach_french_history_baselines(stations, previous_levels or [], now)
     return stations
 
 
@@ -686,11 +733,12 @@ def main():
     try:
         sources['fr-hubeau'] = france_levels(geojson, now, old_levels)
         print('Hub’Eau Maas/Mosel/Rhône Pegel:', len(sources['fr-hubeau']),
-              'davon mit 30-Tage-Vergleich:',
-              sum(bool(s.get('reference_band')) for s in sources['fr-hubeau']))
+              'davon mit historischem Tagesmedian-Vergleich:',
+              sum(bool(s.get('history_baseline')) for s in sources['fr-hubeau']))
     except Exception as exc:
         errors['fr-hubeau'] = str(exc)[:240]
-        sources['fr-hubeau'] = [s for s in old_levels if s.get('src') == 'fr-hubeau']
+        sources['fr-hubeau'] = [{k: v for k, v in s.items() if k != 'reference_band'}
+                                for s in old_levels if s.get('src') == 'fr-hubeau']
     try:
         french_temperatures, candidate_count = france_temperatures(geojson, now)
         live_count = sum(s['items'][0]['value'] is not None for s in french_temperatures)
@@ -722,7 +770,7 @@ def main():
             'at-ktn': {'count': len(sources['at-ktn']), 'url': KTN_URL},
             'at-stmk': {'count': len(sources['at-stmk']), 'url': STMK_BASE},
             'fr-hubeau': {'count': len(sources['fr-hubeau']),
-                          'reference_band_count': sum(bool(s.get('reference_band'))
+                          'history_baseline_count': sum(bool(s.get('history_baseline'))
                                                       for s in sources['fr-hubeau']),
                           'base_url': HUB_BASE},
             'fr-hubeau-temperature': {'count': len(french_temperatures),
@@ -732,7 +780,7 @@ def main():
             'it-arpa-lombardia': {'count': len(sources['it-arpa-lombardia']), 'dataset': ARPA_DATA},
         },
         'errors': errors,
-        'note': 'Nur gemessene Pegel und Wassertemperaturen. Französische Pegelvergleiche stammen aus 30 Tagen eigener Stationsmessungen; kein amtliches Mittelwasser.',
+        'note': 'Nur gemessene Pegel und Wassertemperaturen. Französische Pegelvergleiche stammen aus mindestens 300 Tagesmedianen amtlicher historischer Messungen derselben Station nach Aktivierung des aktuellen Höhenbezugs; kein amtliches Mittelwasser.',
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     temp = OUT.with_suffix('.tmp')

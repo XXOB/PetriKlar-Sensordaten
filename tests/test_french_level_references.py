@@ -1,4 +1,4 @@
-"""French gauge colours use only comparable recent readings from the same gauge."""
+"""French level colours require a long-term, same-gauge historical H reference."""
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -8,81 +8,119 @@ from build_sensor_packets import current_level_packet
 
 
 NOW = datetime(2026, 11, 2, 12, tzinfo=timezone.utc).timestamp()
+STATION = {'id': 'A1', 'src': 'fr-hubeau', 'code_station': 'A123456001',
+           'code_systeme_alti_serie': 31}
+METHOD = 'fr-hydroportail-daily-median-p10-p50-p90'
 
 
-def readings(days=29, changed_gauge=False):
-    rows = []
-    for day in range(days):
-        date = datetime.fromtimestamp(NOW, timezone.utc) - timedelta(days=day)
-        for hour in (0, 1, 2, 3, 4):
-            rows.append({'code_site': 'A1',
-                         'code_station': 'new' if not changed_gauge or day < 7 else 'old',
-                         'code_systeme_alti_serie': 31,
-                         'date_obs': date.replace(hour=hour).isoformat(),
-                         'resultat_obs': 1000 + day * 10})
-    return {'data': rows, 'next': None}
+def metadata(activated='2013-11-18T00:00:00Z'):
+    return {'data': [{'code_station': STATION['code_station'],
+                      'date_activation_ref_alti_station': activated}]}
+
+
+def readings(days=365):
+    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    return [{'t': (start + timedelta(days=i, hours=h)).isoformat(),
+             'v': 1000 + i, 'q': 20, 's': 12}
+            for i in range(days) for h in (0, 4, 8, 12, 16)]
+
+
+def series(rows, unit='mm'):
+    return {'series': {'code': STATION['code_station'], 'metric': 'H',
+            'unit': unit, 'statuses': 'pre_validated_and_validated', 'data': rows}}
+
+
+class Response:
+    def __init__(self, payload):
+        import json
+        self.body = json.dumps(payload).encode()
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def read(self, _limit): return self.body
 
 
 class FrenchLevelReferenceTests(unittest.TestCase):
-    def test_daily_medians_use_one_gauge_and_mm_to_cm(self):
-        with patch.object(feeds, 'fetch_json', return_value=readings()) as fetch:
-            band = feeds.french_reference_band('A1', NOW)
-        self.assertEqual(band['days'], 29)
-        self.assertEqual(band['unit'], 'cm')
-        self.assertEqual(band['center'], 114)
-        self.assertEqual(band['code_station'], 'new')
-        self.assertIn('date_debut=', fetch.call_args.args[0])
+    def test_historical_daily_medians_are_cm_and_require_300_days(self):
+        with patch.object(feeds, 'fetch_json', return_value=metadata()), \
+             patch.object(feeds.urllib.request, 'urlopen', return_value=Response(series(readings()))) as fetch:
+            baseline = feeds.french_history_baseline(STATION, NOW)
+        self.assertEqual(baseline['method'], METHOD)
+        self.assertEqual(baseline['days'], 365)
+        self.assertEqual(baseline['unit'], 'cm')
+        self.assertAlmostEqual(baseline['center'], 118.2)
+        self.assertEqual(baseline['code_station'], STATION['code_station'])
+        self.assertIn('hydro.eaufrance.fr', fetch.call_args.args[0].full_url)
+        self.assertIn('variableType', fetch.call_args.args[0].full_url)
 
-    def test_incomplete_series_and_changed_datum_remain_uncoloured(self):
-        for payload in (readings(15), readings(changed_gauge=True),
-                        {**readings(), 'next': 'https://example.invalid/next'}):
-            with patch.object(feeds, 'fetch_json', return_value=payload):
-                self.assertIsNone(feeds.french_reference_band('A1', NOW))
+    def test_missing_or_changed_datum_and_short_history_stay_gray(self):
+        self.assertIsNone(feeds.french_history_baseline({**STATION,
+                          'code_systeme_alti_serie': None}, NOW))
+        with patch.object(feeds, 'fetch_json', return_value=metadata('2026-04-01T00:00:00Z')):
+            self.assertIsNone(feeds.french_history_baseline(STATION, NOW))
+        for payload in (series(readings(299)), series(readings(), 'm'),
+                        {**series(readings()), 'series': {**series(readings())['series'], 'code': 'OTHER'}}):
+            with patch.object(feeds, 'fetch_json', return_value=metadata()), \
+                 patch.object(feeds.urllib.request, 'urlopen', return_value=Response(payload)):
+                self.assertIsNone(feeds.french_history_baseline(STATION, NOW))
 
-    def test_paginated_high_frequency_series_uses_all_days(self):
-        series = readings()
-        first = {'data': series['data'][:75], 'next': 'https://example.test/page2'}
-        second = {'data': series['data'][75:], 'next': None}
-        with patch.object(feeds, 'fetch_json', side_effect=[first, second]) as fetch:
-            band = feeds.french_reference_band('A1', NOW)
-        self.assertEqual(band['days'], 29)
-        self.assertEqual(fetch.call_count, 2)
-        self.assertEqual(fetch.call_args_list[1].args[0], first['next'])
+    def test_quality_filter_and_one_reading_per_day(self):
+        rows = readings()[::5] + [{**readings(1)[0], 't': '2025-12-31T18:00:00Z',
+                              'v': 99000, 'q': 16}]
+        with patch.object(feeds, 'fetch_json', return_value=metadata()), \
+             patch.object(feeds.urllib.request, 'urlopen', return_value=Response(series(rows))):
+            baseline = feeds.french_history_baseline(STATION, NOW)
+        self.assertEqual(baseline['days'], 365)
+        self.assertAlmostEqual(baseline['center'], 118.2)
 
-    def test_recent_cache_is_reused_but_changed_gauge_invalidates_it(self):
-        band = {'method': 'fr-hubeau-recent-30d-daily-median-p10-p50-p90',
-                'unit': 'cm', 'low': 90, 'center': 100, 'high': 110, 'days': 29,
-                'fetched_at': datetime.fromtimestamp(NOW - 3600, timezone.utc).isoformat(),
-                'code_station': 'old', 'code_systeme_alti_serie': 31}
-        old = [{'id': 'A1', 'src': 'fr-hubeau', 'reference_band': band}]
-        station = {'id': 'A1', 'code_station': 'old', 'code_systeme_alti_serie': 31}
-        with patch.object(feeds, 'french_reference_band') as fetch:
-            feeds.attach_french_reference_bands([station], old, NOW)
+    def test_old_gap_does_not_poison_a_later_complete_year(self):
+        rows = [{'t': '2023-12-01T12:00:00Z', 'v': 99000, 'q': 20, 's': 12}] + readings()
+        with patch.object(feeds, 'fetch_json', return_value=metadata()), \
+             patch.object(feeds.urllib.request, 'urlopen', return_value=Response(series(rows))):
+            baseline = feeds.french_history_baseline(STATION, NOW)
+        self.assertEqual(baseline['start'], '2025-01-01')
+        self.assertEqual(baseline['days'], 365)
+
+    def test_cache_reused_only_for_same_gauge_and_datum_and_old_band_removed(self):
+        baseline = {'method': METHOD, 'unit': 'cm', 'days': 365,
+                    'code_station': STATION['code_station'], 'code_systeme_alti_serie': 31,
+                    'fetched_at': datetime.fromtimestamp(NOW - 3600, timezone.utc).isoformat()}
+        old = [{'id': 'A1', 'src': 'fr-hubeau', 'history_baseline': baseline,
+                'reference_band': {'method': 'fr-hubeau-recent-30d-daily-median-p10-p50-p90'}}]
+        row = {**STATION, 'reference_band': old[0]['reference_band']}
+        with patch.object(feeds, 'french_history_baseline') as fetch:
+            feeds.attach_french_history_baselines([row], old, NOW)
             fetch.assert_not_called()
-        self.assertEqual(station['reference_band'], band)
-        changed = {'id': 'A1', 'code_station': 'new', 'code_systeme_alti_serie': 31}
-        with patch.object(feeds, 'french_reference_band', return_value=None) as fetch:
-            feeds.attach_french_reference_bands([changed], old, NOW)
+        self.assertEqual(row['history_baseline'], baseline)
+        self.assertNotIn('reference_band', row)
+        monthly_old = {**baseline, 'fetched_at': datetime.fromtimestamp(
+            NOW - 31 * 86400, timezone.utc).isoformat()}
+        month_row = {**STATION}
+        with patch.object(feeds, 'french_history_baseline', return_value=None) as fetch:
+            feeds.attach_french_history_baselines([month_row],
+                [{**STATION, 'history_baseline': monthly_old}], NOW)
             fetch.assert_called_once()
-        self.assertNotIn('reference_band', changed)
+        self.assertEqual(month_row['history_baseline'], monthly_old)
+        changed = {**STATION, 'code_station': 'OTHER'}
+        with patch.object(feeds, 'french_history_baseline', return_value=None) as fetch:
+            feeds.attach_french_history_baselines([changed], old, NOW)
+            fetch.assert_called_once()
+        self.assertNotIn('history_baseline', changed)
 
-    def test_compact_first_paint_packet_keeps_french_reference(self):
-        band = {'method': 'fr-hubeau-recent-30d-daily-median-p10-p50-p90',
-                'low': 80, 'center': 100, 'high': 140, 'unit': 'cm', 'days': 29}
-        station = {'id': 'A1', 'river': 'Maas', 'source': 'fr-hubeau',
-                   'current': {'t': '2026-11-02T11:30:00Z', 'v': 105},
-                   'reference_band': band, 'history': [{'t': '2026-11-01T11:30:00Z', 'v': 99}]}
+    def test_compact_packet_keeps_long_term_reference_not_history(self):
+        baseline = {'method': METHOD, 'days': 365, 'unit': 'cm'}
+        station = {**STATION, 'current': {'t': '2026-11-02T11:30:00Z', 'v': 105},
+                   'history_baseline': baseline,
+                   'history': [{'t': '2026-11-01T11:30:00Z', 'v': 99}]}
         packet = current_level_packet({'schema': 1, 'stations': [station]},
                                       '2026-11-02T12:00:00Z')
-        self.assertEqual(packet['stations'][0]['reference_band'], band)
+        self.assertEqual(packet['stations'][0]['history_baseline'], baseline)
         self.assertNotIn('history', packet['stations'][0])
 
-    def test_one_timed_out_hubeau_batch_keeps_older_stations(self):
+    def test_timed_out_hubeau_batch_keeps_older_stations(self):
         rivers = ('Maas', 'Mosel', 'Rhône')
         geometry = {'features': [
-            {'properties': {'name': river},
-             'geometry': {'type': 'LineString',
-                          'coordinates': [[5.0 + index, 48.0], [5.2 + index, 48.0]]}}
+            {'properties': {'name': river}, 'geometry': {'type': 'LineString',
+             'coordinates': [[5.0 + index, 48.0], [5.2 + index, 48.0]]}}
             for index, river in enumerate(rivers)]}
         old = []
         def sites(label):
@@ -98,8 +136,7 @@ class FrenchLevelReferenceTests(unittest.TestCase):
             return {'data': records}
         with patch.object(feeds, 'hubeau_sites', side_effect=sites), \
              patch.object(feeds, 'fetch_json', side_effect=TimeoutError('temporary')), \
-             patch.object(feeds, 'attach_french_reference_bands'):
-            # Build the old catalogue first; the feed itself is unavailable.
+             patch.object(feeds, 'attach_french_history_baselines'):
             for label in ('La Meuse', 'La Moselle', 'Le Rhône'):
                 sites(label)
             result = feeds.france_levels(geometry, NOW, old)
