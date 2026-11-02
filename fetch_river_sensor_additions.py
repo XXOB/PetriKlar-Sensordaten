@@ -342,13 +342,19 @@ def french_reference_band(code: str, now: float):
     """Recent, station-relative H range; never advertised as official mean water."""
     start = datetime.fromtimestamp(now - 30 * 86400, timezone.utc).date().isoformat()
     url = query_url(HUB_BASE + 'observations_tr', {
-        'format': 'json', 'size': 10000, 'sort': 'desc',
+        'format': 'json', 'size': 5000, 'sort': 'desc',
         'code_entite': code, 'grandeur_hydro': 'H', 'date_debut': start,
     })
-    payload = fetch_json(url, timeout=30)
-    if payload.get('next'):
-        return None  # An incomplete page must not silently bias a percentile.
-    rows = payload.get('data', [])
+    rows = []
+    page_url = url
+    for _ in range(12):
+        payload = fetch_json(page_url, timeout=30)
+        rows.extend(payload.get('data', []))
+        page_url = payload.get('next')
+        if not page_url:
+            break
+    if page_url:
+        return None  # An incomplete series must not bias a percentile.
     if not rows:
         return None
     # A site can contain multiple physical gauges or vertical datums. Never

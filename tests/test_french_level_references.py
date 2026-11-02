@@ -39,6 +39,16 @@ class FrenchLevelReferenceTests(unittest.TestCase):
             with patch.object(feeds, 'fetch_json', return_value=payload):
                 self.assertIsNone(feeds.french_reference_band('A1', NOW))
 
+    def test_paginated_high_frequency_series_uses_all_days(self):
+        series = readings()
+        first = {'data': series['data'][:75], 'next': 'https://example.test/page2'}
+        second = {'data': series['data'][75:], 'next': None}
+        with patch.object(feeds, 'fetch_json', side_effect=[first, second]) as fetch:
+            band = feeds.french_reference_band('A1', NOW)
+        self.assertEqual(band['days'], 29)
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(fetch.call_args_list[1].args[0], first['next'])
+
     def test_recent_cache_is_reused_but_changed_gauge_invalidates_it(self):
         band = {'method': 'fr-hubeau-recent-30d-daily-median-p10-p50-p90',
                 'unit': 'cm', 'low': 90, 'center': 100, 'high': 110, 'days': 29,
