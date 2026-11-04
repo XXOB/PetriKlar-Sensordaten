@@ -57,21 +57,34 @@ def references(series):
     refs = {}
     for row in series.get('characteristicValues') or []:
         key = row.get('shortname')
-        if key not in ('MNW', 'MW', 'MHW'):
+        if key not in ('NNW', 'NW', 'MNW', 'MW', 'MHW', 'HW', 'HHW'):
             continue
-        refs[key] = {k: row[k] for k in ('value', 'unit', 'timespanStart', 'timespanEnd', 'validFrom') if k in row}
+        refs[key] = {k: row[k] for k in ('value', 'unit', 'timespanStart', 'timespanEnd', 'validFrom', 'occurrences') if k in row}
+    # Absolute historical extremes have occurrence dates rather than the
+    # common averaging period. They must not invalidate MNW/MW/MHW, which are
+    # used by the map's station-relative colour model.
+    for key in ('NNW', 'NW', 'HW', 'HHW'):
+        extreme = refs.get(key)
+        if extreme and (number(extreme.get('value')) is None or extreme.get('unit') != series.get('unit')):
+            del refs[key]
     if 'MHW' in refs and number(refs['MHW'].get('value')) is None:
         del refs['MHW']
     if not all(k in refs for k in ('MNW', 'MW')):
         return refs, 'missing-references'
-    if series.get('unit') != 'cm' or any(x.get('unit') != 'cm' for x in refs.values()):
+    if series.get('unit') != 'cm' or any(refs[k].get('unit') != 'cm' for k in ('MNW', 'MW', 'MHW') if k in refs):
         return refs, 'reference-unit'
     values = [number(refs[k].get('value')) for k in ('MNW', 'MW', 'MHW') if k in refs]
     if any(v is None for v in values) or not all(a < b for a, b in zip(values, values[1:])):
         return refs, 'reference-order'
-    periods = {(v.get('timespanStart'), v.get('timespanEnd'), v.get('validFrom')) for v in refs.values()}
+    periods = {(refs[k].get('timespanStart'), refs[k].get('timespanEnd'), refs[k].get('validFrom')) for k in ('MNW', 'MW', 'MHW') if k in refs}
     if len(periods) != 1:
         return refs, 'reference-period'
+    for key in ('NNW', 'NW'):
+        if key in refs and number(refs[key]['value']) > number(refs['MNW']['value']):
+            del refs[key]
+    for key in ('HW', 'HHW'):
+        if key in refs and number(refs[key]['value']) < number(refs.get('MHW', refs['MW'])['value']):
+            del refs[key]
     return refs, None
 
 
