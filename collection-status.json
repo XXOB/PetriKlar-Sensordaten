@@ -1,8 +1,8 @@
 {
-  "status": "success",
-  "started_at": "2026-11-18T19:18:02.845600+00:00",
-  "finished_at": "2026-11-18T19:41:15.253521+00:00",
-  "previous_finished_at": "2026-11-18T18:41:05.389654+00:00",
-  "run_id": "44378855697",
-  "run_url": "https://github.com/XXOB/PetriKlar-Sensordaten/actions/runs/44378855697"
+  "status": "failure",
+  "started_at": "2026-11-18T20:18:25.439676+00:00",
+  "finished_at": "2026-11-18T20:42:15.109496+00:00",
+  "previous_finished_at": "2026-11-18T19:41:15.253521+00:00",
+  "run_id": "44389387966",
+  "run_url": "https://github.com/XXOB/PetriKlar-Sensordaten/actions/runs/44389387966"
 }
