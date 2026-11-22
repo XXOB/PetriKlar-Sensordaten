@@ -1534,17 +1534,25 @@ def process_switzerland_bafu():
     stations={str(s.get("no")):s for s in station_rows if s.get("latitude") is not None}
 
     since=(datetime.now(timezone.utc)-timedelta(hours=3)).isoformat().replace("+00:00","Z")
-    live_query="""
-    { water { observations {
-      data_live(
-        where:{timestamp:{_gte:\"%s\"},parameterName:{_in:[\"W\",\"Q\",\"WT\"]}},
-        order_by:{timestamp:desc}, limit:10000
-      ) { stationNo parameterName timestamp value releaseStatus }
-    } } }
-    """ % since
-    live_obj=post_json(BAFU_API,{"query":live_query},120)
-    if live_obj.get("errors"): raise RuntimeError("BAFU Livewerte: "+str(live_obj["errors"])[:500])
-    live_rows=live_obj.get("data",{}).get("water",{}).get("observations",{}).get("data_live",[])
+    # data_live has no order_by argument. A combined three-hour query also
+    # exceeds the API's 10,000-row cap; query each parameter separately and
+    # choose the latest timestamp per station below, independent of row order.
+    live_rows=[]
+    for parameter in ("W", "Q", "WT"):
+        live_query="""
+        { water { observations {
+          data_live(
+            where:{timestamp:{_gte:\"%s\"},parameterName:{_eq:\"%s\"}},
+            limit:10000
+          ) { stationNo parameterName timestamp value releaseStatus }
+        } } }
+        """ % (since, parameter)
+        live_obj=post_json(BAFU_API,{"query":live_query},120)
+        if live_obj.get("errors"): raise RuntimeError("BAFU Livewerte "+parameter+": "+str(live_obj["errors"])[:500])
+        rows=live_obj.get("data",{}).get("water",{}).get("observations",{}).get("data_live",[])
+        if len(rows) >= 10000:
+            raise RuntimeError("BAFU Livewerte "+parameter+": 10.000-Zeilen-Limit erreicht")
+        live_rows.extend(rows)
     grouped={}
     for row in live_rows:
         sid=str(row.get("stationNo") or ""); code=str(row.get("parameterName") or "").upper()
