@@ -32,6 +32,16 @@ GEOMETRY = ROOT / 'assets/data/temperature-rivers.geojson'
 UA = 'PetriKlar/1.0 (+https://www.petriklar.com)'
 HUB_BASE = 'https://hubeau.eaufrance.fr/api/v2/hydrometrie/'
 HUB_TEMPERATURE = 'https://hubeau.eaufrance.fr/api/v1/temperature/'
+SYNAPSES_DATA = 'https://synapses.seine-aval.fr/getData'
+SYNAPSES_PAGE = 'https://synapses.seine-aval.fr/'
+# Official SYNAPSES station IDs; only surface sensors on the mapped Seine.
+# Coordinates are published by the licensed dreal_b:qry_synapses WFS layer.
+SYNAPSES_SURFACE = {
+    '1': ('Rouen', 1.0720, 49.4433),
+    '3': ('Val des Leux', 0.9216, 49.4025),
+    '4': ('Tancarville', 0.4672, 49.4769),
+    '6': ('Fatouville', 0.3160, 49.4318),
+}
 KTN_URL = 'https://info.ktn.gv.at/asp/hydro/daten/json/hdkaernten_abfluss.json'
 STMK_BASE = 'https://egov.stmk.gv.at/at.gv.stmk.hydavis-p/pub/praesentation/index.xhtml'
 STMK_INFO = 'https://www.hydrografie.steiermark.at/cms/beitrag/12813605/142514764'
@@ -645,6 +655,67 @@ def france_temperatures(geojson: dict, now: float):
     return stations, len(candidates)
 
 
+def synapses_temperatures(geojson: dict, now: float):
+    """Use timestamped SYNAPSES measurements, not the date of its J+1 WFS summary.
+
+    The public graph service uses parameter 9 for water temperature and Unix
+    seconds for observations. A daily summary's date alone is not proof that a
+    sensor supplied a new measurement; stale readings therefore stay stale.
+    Bottom sensors are deliberately excluded from the main-river map.
+    """
+    route = lines_for(geojson, 'Seine')
+    if not route:
+        raise RuntimeError('No mapped Seine line')
+    begin = datetime.fromtimestamp(now - 31 * 86400, timezone.utc).strftime('%Y%m%d')
+    end = datetime.fromtimestamp(now, timezone.utc).strftime('%Y%m%d')
+    url = query_url(SYNAPSES_DATA, {
+        'dateDebut': begin, 'dateFin': end,
+        'lieux': ','.join(SYNAPSES_SURFACE), 'parametres': '9',
+    })
+    payload = fetch_json(url)
+    curves = payload.get('courbes')
+    if not isinstance(curves, list) or len(curves) != len(SYNAPSES_SURFACE):
+        raise RuntimeError('SYNAPSES returned an incomplete temperature response')
+    points_by_id = {key: [] for key in SYNAPSES_SURFACE}
+    for curve in curves:
+        key = str(curve.get('idlieu') or '')
+        if key not in points_by_id or str(curve.get('idparametre')) != '9':
+            raise RuntimeError('SYNAPSES returned an unexpected station or parameter')
+        for raw in str(curve.get('courbe') or '').split(';'):
+            parts = raw.split('|')
+            if len(parts) != 2:
+                continue
+            try:
+                observed_seconds = int(parts[0])
+            except ValueError:
+                continue
+            value = number(parts[1])
+            if (value is None or not -2 <= value <= 40
+                    or not now - 31 * 86400 <= observed_seconds <= now + 900):
+                continue
+            observed = datetime.fromtimestamp(observed_seconds, timezone.utc).isoformat()
+            points_by_id[key].append({'t': observed, 'v': value})
+    stations = []
+    for key, (name, lon, lat) in SYNAPSES_SURFACE.items():
+        if distance_km(lon, lat, route) > 1.5:
+            raise RuntimeError(f'SYNAPSES station {name} is off the mapped Seine')
+        history = hourly(points_by_id[key], now, keep_days=31)
+        latest = history[-1] if history else None
+        stations.append({
+            'id': 'fr-synapses-' + key, 'name': name + ' · Seine (Oberfläche)',
+            'river': 'Seine', 'country': 'FR', 'src': 'fr-synapses',
+            'lat': lat, 'lon': lon, 'params': {'wt': True},
+            'source_url': SYNAPSES_PAGE, 'attribution': 'GIP Seine-Aval · réseau SYNAPSES',
+            'data_note': 'Oberflächenmessung im tidebeeinflussten Seine-Ästuar; keine Temperatur für den gesamten Fluss.',
+            'items': [{'label': 'Wassertemperatur',
+                       'value': latest['v'] if latest else None, 'unit': '°C',
+                       'time': latest['t'] if latest else None,
+                       **({} if latest else {'quality': 'unavailable'})}],
+            'history': {'Wassertemperatur': history} if history else {},
+        })
+    return stations
+
+
 def arpa_levels(geojson: dict, now: float):
     # ARPA's map is a no-column visualization. Its public backing table is nf78-nj6b.
     meta = fetch_json(query_url(ARPA_META, {
@@ -751,6 +822,14 @@ def main():
         candidate_count = None
         live_count = sum(s['items'][0]['value'] is not None for s in french_temperatures)
     try:
+        seine_temperatures = synapses_temperatures(geojson, now)
+        print('SYNAPSES Seine Oberflächenstationen:', len(seine_temperatures),
+              'mit Messwert:', sum(s['items'][0]['value'] is not None
+                                  for s in seine_temperatures))
+    except Exception as exc:
+        errors['fr-synapses'] = str(exc)[:240]
+        seine_temperatures = [s for s in old_temperatures if s.get('src') == 'fr-synapses']
+    try:
         sources['it-arpa-lombardia'] = arpa_levels(geojson, now)
         print('ARPA Lombardia Ticino-Pegel:', len(sources['it-arpa-lombardia']))
     except Exception as exc:
@@ -765,7 +844,8 @@ def main():
         'updated': datetime.now(timezone.utc).isoformat(),
         'level_stations': list(merged.values()),
         'temperature_stations': [s for s in old_temperatures
-                                 if s.get('src') != 'fr-hubeau-temperature'] + french_temperatures,
+                                 if s.get('src') not in ('fr-hubeau-temperature', 'fr-synapses')]
+                                + french_temperatures + seine_temperatures,
         'source_report': {
             'at-ktn': {'count': len(sources['at-ktn']), 'url': KTN_URL},
             'at-stmk': {'count': len(sources['at-stmk']), 'url': STMK_BASE},
@@ -777,6 +857,10 @@ def main():
                                       'live_count': live_count,
                                       'candidate_count': candidate_count,
                                       'base_url': HUB_TEMPERATURE},
+            'fr-synapses': {'count': len(seine_temperatures),
+                            'measured_count': sum(s['items'][0]['value'] is not None
+                                                  for s in seine_temperatures),
+                            'source_url': SYNAPSES_PAGE},
             'it-arpa-lombardia': {'count': len(sources['it-arpa-lombardia']), 'dataset': ARPA_DATA},
         },
         'errors': errors,
