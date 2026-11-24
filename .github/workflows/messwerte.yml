@@ -93,6 +93,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_undine.py' -v
           python -m unittest discover -s tests -p 'test_lfu_brandenburg_temperature.py' -v
+          python -m unittest discover -s tests -p 'test_lahn_temperature.py' -v
           python -m unittest discover -s tests -p 'test_temperature_snapshot_recovery.py' -v
 
       - name: Oesterreich

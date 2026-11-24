@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 RIVERS = {x.casefold(): x for x in ("Rhein", "Nederrijn", "Main", "Mosel", "Donau", "Weser", "Elbe", "Oder", "Inn", "Lech",
                                     "Neckar", "Isar", "Leine", "Aller", "Ems", "Saale",
                                     "Salzach", "Enns", "Mur", "Drau", "Traun", "Bodensee", "Spree", "Havel",
-                                    "IJssel", "Rhein-Maas-Delta", "Doubs", "Seine", "Vorderrhein", "Alpenrhein")}
+                                    "IJssel", "Rhein-Maas-Delta", "Doubs", "Seine", "Vorderrhein", "Alpenrhein", "Lahn")}
 RIVERS["spree-oder-wasserstrasse"] = "Spree"
 RIVERS["spree-oder-wasserstraße"] = "Spree"
 RIVERS["odra"] = "Oder"
