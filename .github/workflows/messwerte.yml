@@ -221,6 +221,7 @@ jobs:
         timeout-minutes: 25
         run: |
           python -m unittest discover -s tests -p 'test_french_level_references.py' -v
+          python -m unittest discover -s tests -p 'test_french_temperatures.py' -v
           python -m unittest discover -s tests -p 'test_synapses_temperatures.py' -v
           python fetch_river_sensor_additions.py || {
             echo "::warning::Zusatz-Pegel nicht vollstaendig aktualisiert; letzter Stand bleibt erhalten."

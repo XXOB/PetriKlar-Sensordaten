@@ -16,6 +16,8 @@ GEOJSON = {'features': [
      'geometry': {'type': 'LineString', 'coordinates': [[5.0, 49.0], [5.2, 49.0]]}},
     {'properties': {'name': 'Mosel'},
      'geometry': {'type': 'LineString', 'coordinates': [[6.0, 49.0], [6.2, 49.0]]}},
+    {'properties': {'name': 'Seine'},
+     'geometry': {'type': 'LineString', 'coordinates': [[2.0, 48.9], [2.5, 48.9]]}},
 ]}
 CATALOGUE = {'data': [
     {'code_station': 'meuse', 'libelle_station': 'La Meuse test',
@@ -55,6 +57,22 @@ class FrenchTemperatureTests(unittest.TestCase):
         self.assertEqual(len(stations), 2)
         self.assertTrue(all(row['items'][0]['value'] is None for row in stations))
         self.assertTrue(all(row['items'][0]['quality'] == 'unavailable' for row in stations))
+
+    def test_seine_historical_catalogue_stays_visible_without_fake_current_value(self):
+        catalogue = {'data': [
+            {'code_station': 'paris', 'libelle_station': 'La Seine à Paris',
+             'libelle_cours_eau': 'La Seine', 'longitude': 2.25, 'latitude': 48.9},
+            {'code_station': 'tributary', 'libelle_cours_eau': 'La Seine',
+             'longitude': 2.25, 'latitude': 48.95},
+        ]}
+        with patch.object(module, 'fetch_json', side_effect=[catalogue, {'data': []}]):
+            stations, count = module.france_temperatures(GEOJSON, NOW)
+        self.assertEqual(count, 1)
+        self.assertEqual(stations[0]['river'], 'Seine')
+        self.assertEqual(stations[0]['id'], 'fr-hubeau-temp-paris')
+        self.assertIsNone(stations[0]['items'][0]['value'])
+        self.assertEqual(stations[0]['items'][0]['quality'], 'unavailable')
+        self.assertIn('24 Stunden', stations[0]['data_note'])
 
     def test_incomplete_observation_page_is_not_silently_accepted(self):
         with patch.object(module, 'fetch_json', side_effect=[CATALOGUE,

@@ -572,24 +572,27 @@ def france_levels(geojson: dict, now: float, previous_levels: list | None = None
 
 
 def france_temperatures(geojson: dict, now: float):
-    """Import only dated, observed Maas/Mosel water temperatures from Hub'Eau.
+    """Import dated Maas/Mosel/Seine temperatures and dormant station metadata.
 
     The station catalogue includes long-dormant thermometers. Catalogue presence
     alone must never colour a river: stations without a recent reading get an
     explicit unavailable item; the map applies its stricter freshness threshold.
     """
-    routes = {river: lines_for(geojson, river) for river in ('Maas', 'Mosel')}
+    routes = {river: lines_for(geojson, river) for river in ('Maas', 'Mosel', 'Seine')}
     if not all(routes.values()):
-        raise RuntimeError('No mapped line for French Maas or Mosel')
+        raise RuntimeError('No mapped line for French Maas, Mosel or Seine')
     catalogue = fetch_json(query_url(HUB_TEMPERATURE + 'station', {
-        'format': 'json', 'bbox': '5.0,47.7,7.8,50.2', 'size': 1000,
+        'format': 'json', 'bbox': '0,47.5,7.8,50.2', 'size': 1000,
     }))
     if not isinstance(catalogue.get('data'), list):
         raise RuntimeError('Hub\'Eau temperature catalogue missing')
+    if catalogue.get('next'):
+        raise RuntimeError('Hub\'Eau temperature catalogue exceeded one page')
     candidates = {}
     for row in catalogue['data']:
         label = str(row.get('libelle_cours_eau') or '').strip().casefold()
-        river = {'la meuse': 'Maas', 'la moselle': 'Mosel'}.get(label)
+        river = {'la meuse': 'Maas', 'la moselle': 'Mosel',
+                 'la seine': 'Seine'}.get(label)
         code = str(row.get('code_station') or '').strip()
         lon, lat = number(row.get('longitude')), number(row.get('latitude'))
         if not river or not code or lon is None or lat is None:
@@ -607,9 +610,12 @@ def france_temperatures(geojson: dict, now: float):
             'license': 'Licence Ouverte / Open Licence 2.0',
             'license_url': 'https://www.etalab.gouv.fr/licence-ouverte-open-licence/',
             'attribution': "Source : Hub'Eau / Naïades (OFB, BRGM)",
+            'data_note': ('Hub’Eau/Naïades-Messstelle: nur eine datierte Messung innerhalb '
+                          'von 24 Stunden färbt den Fluss; ohne solchen Wert bleibt der Messort grau.'
+                          if river == 'Seine' else ''),
         }
     if not candidates:
-        raise RuntimeError('No mapped Hub\'Eau Maas/Mosel temperature stations')
+        raise RuntimeError('No mapped Hub\'Eau Maas/Mosel/Seine temperature stations')
     begin = datetime.fromtimestamp(now - 8 * 86400, timezone.utc).date().isoformat()
     readings = fetch_json(query_url(HUB_TEMPERATURE + 'chronique', {
         'format': 'json', 'code_station': ','.join(sorted(candidates)),
@@ -813,7 +819,7 @@ def main():
     try:
         french_temperatures, candidate_count = france_temperatures(geojson, now)
         live_count = sum(s['items'][0]['value'] is not None for s in french_temperatures)
-        print('Hub’Eau Maas/Mosel Temperatur:', live_count,
+        print('Hub’Eau Maas/Mosel/Seine Temperatur:', live_count,
               'mit Messwert von', candidate_count, 'registrierten Stationen')
     except Exception as exc:
         errors['fr-hubeau-temperature'] = str(exc)[:240]
